@@ -1,0 +1,37 @@
+name: KitchenAid
+version: "0.2.0"
+slug: kitchenaid
+description: Recipes, meal plan, shopping list, pantry with prices paid, and grocery price comparison — with an MCP endpoint for AI assistants
+url: https://github.com/Wilco20004/KitchenAid
+arch:
+  - aarch64
+  - amd64
+  - armv7
+init: false
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8096
+panel_icon: mdi:silverware-fork-knife
+panel_title: Kitchen
+webui: "http://[HOST]:[PORT:8096]/"
+ports:
+  8096/tcp: 8096
+ports_description:
+  8096/tcp: Web UI and the MCP endpoint for AI assistants (/mcp needs the token from Settings)
+options:
+  budgetpro_url: "http://10.1.1.3:8097"
+  budgetpro_token: ""
+  budgetpro_categories: "Groceries"
+  cache_hours: 24
+  pnp_store_code: "WC21"
+  woolworths_price_zone: p10
+  makro_pages: 1
+schema:
+  budgetpro_url: "str?"
+  budgetpro_token: "password?"
+  budgetpro_categories: "str"
+  cache_hours: int(1,168)
+  pnp_store_code: str
+  woolworths_price_zone: list(p10|p30|p60)
+  makro_pages: int(1,3)

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+*.log
+.env
+.DS_Store
+data/*.db
+data/*.db-journal
+data/*.db-shm
+data/*.db-wal
+data/uploads/*
+!data/uploads/.gitkeep
+
+# local secrets
+grocy details.txt

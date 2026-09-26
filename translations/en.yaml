@@ -1,0 +1,22 @@
+configuration:
+  budgetpro_url:
+    name: BudgetPro address
+    description: BudgetPro's own port, e.g. http://10.1.1.3:8097 (not the sidebar link). Leave the token empty to not connect.
+  budgetpro_token:
+    name: BudgetPro API token
+    description: From BudgetPro → Settings → API & AI access. Grocery slips then fill the pantry with the prices paid.
+  budgetpro_categories:
+    name: BudgetPro grocery categories
+    description: Comma-separated BudgetPro categories whose slip lines count as groceries (their subcategories are included).
+  cache_hours:
+    name: Price cache (hours)
+    description: How long a store's answer for a search is reused before asking again.
+  pnp_store_code:
+    name: Pick n Pay store code
+    description: Prices differ per store; WC21 is the one pnp.co.za uses before you pick your own.
+  woolworths_price_zone:
+    name: Woolworths price zone
+    description: Woolworths lists prices per region (p10, p30, p60).
+  makro_pages:
+    name: Makro result pages
+    description: How many pages of Makro results to read per search.
