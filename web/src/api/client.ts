@@ -137,6 +137,8 @@ export const api = {
   addPantryText: (text: string) => request<Item>('api/pantry', json('POST', { text })),
   putInPantry: (id: string, data: { quantity?: number | null; unit?: string | null; note?: string | null } = {}) =>
     request<Item>(`api/items/${id}/pantry`, json('POST', data)),
+  setExpiry: (id: string, data: { expires_at?: string | null; keeps_days?: number | null }) =>
+    request<ItemDetail>(`api/items/${id}/expiry`, json('PUT', data)),
   usedUp: (id: string) => request<ItemDetail>(`api/items/${id}/pantry`, { method: 'DELETE' }),
   setItemPrice: (id: string, pack_price: number, pack_label: string) =>
     request<ItemDetail>(`api/items/${id}/price`, json('PUT', { pack_price, pack_label })),

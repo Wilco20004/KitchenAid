@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0 — 2026-09-26
+
+- **Use-by dates in the pantry.** Set the date on the pack, or how long an
+  item usually keeps (mince in the freezer: 3 months) — that's remembered,
+  so each later purchase from a slip, the shopping list or by hand is dated
+  on its own. More of something already at home keeps the earlier date.
+- **Use soon** at the top of the pantry: anything expired or due within a
+  week, soonest first, with the date on every pantry line.
+- AI assistants see use-by dates in `get_pantry` (and can ask for just
+  what's expiring) and can set them with `update_pantry`.
+- `GET /api/pantry/expiring?days=3` for a Home Assistant sensor or
+  notification.
+
 ## 0.5.2 — 2026-09-26
 
 - Recipe costs no longer borrow a price across product forms in either

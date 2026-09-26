@@ -138,3 +138,31 @@ test('a plain count of something sold by weight means that many packs', async ()
   assert.deepEqual(packsFor(soup, { name: 'onion soup', quantity: 2, unit: null }), { packs: 2, cost: 25.98 });
   assert.deepEqual(packsFor(soup, { name: 'onion soup', quantity: 120, unit: 'g' }), { packs: 3, cost: 38.97 });
 });
+
+test('expiry: remembered keeps-for dates each purchase, the older packet decides, used up clears it', async () => {
+  const { items } = await load();
+  const mince = items.ensureItem('Frozen beef mince');
+  items.addToPantry({ itemId: mince.id, bought_at: '2026-09-20' });
+  assert.equal(items.getItem(mince.id)!.expires_at, null);
+
+  // Setting "keeps for 90 days" dates what's already at home from when it was bought…
+  assert.equal(items.setExpiry(mince.id, { keeps_days: 90 }).expires_at, '2026-12-19');
+  // …a newer packet doesn't push the date later…
+  items.addToPantry({ itemId: mince.id, bought_at: '2026-09-26' });
+  assert.equal(items.getItem(mince.id)!.expires_at, '2026-12-19');
+  // …but a pack dated sooner does.
+  items.addToPantry({ itemId: mince.id, expires_at: '2026-10-01' });
+  assert.equal(items.getItem(mince.id)!.expires_at, '2026-10-01');
+
+  items.removeFromPantry(mince.id);
+  assert.equal(items.getItem(mince.id)!.expires_at, null);
+  // Bought again: dated from the remembered keeps-for.
+  items.addToPantry({ itemId: mince.id, bought_at: '2026-10-05' });
+  assert.equal(items.getItem(mince.id)!.expires_at, '2027-01-03');
+
+  const yoghurt = items.ensureItem('Plain yoghurt');
+  items.addToPantry({ itemId: yoghurt.id, expires_at: items.addDays(items.today(), -1) });
+  const soon = items.expiringItems(7).map((i) => [i.name, items.daysLeft(i.expires_at!)]);
+  assert.deepEqual(soon, [['Plain yoghurt', -1]]);
+  assert.throws(() => items.setExpiry(yoghurt.id, { expires_at: '1 Oct' }), /YYYY-MM-DD/);
+});

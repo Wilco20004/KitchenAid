@@ -8,7 +8,7 @@ import { loadRecipe } from './recipes';
 import { listRecipes } from './routes/recipes';
 import { nameKey, parseIngredient } from './ingredients';
 import { addItem, ShoppingItemRow } from './shopping';
-import { addToPantry, findItem, itemDetail, latestPricesByStore, listItems, removeFromPantry } from './items';
+import { addToPantry, daysLeft, expiringItems, findItem, isDate, itemDetail, latestPricesByStore, listItems, removeFromPantry, setExpiry } from './items';
 import { pricedItemFor, recipeCost } from './costing';
 import { NeedLine, paidPricesFor } from './paid';
 import { budgetProStatus, syncBudgetPro } from './budgetpro';
@@ -394,18 +394,23 @@ function buildServer(): McpServer {
     {
       title: 'What’s in the pantry',
       description:
-        'Things at home, with when they were bought, where the line came from (budgetpro slip, shopping list, manual) and ' +
-        'the last price paid (pack price, and unit_price per item / g / ml).',
-      inputSchema: { query: z.string().optional() },
+        'Things at home, with when they were bought, their use-by date (use_by, days_left — negative once past) and how long ' +
+        'the item usually keeps, where the line came from (budgetpro slip, shopping list, manual) and the last price paid ' +
+        '(pack price, and unit_price per item / g / ml). expiring_within_days lists only what must be used soon, soonest first — ' +
+        'use it to suggest meals that use those up.',
+      inputSchema: { query: z.string().optional(), expiring_within_days: z.number().int().min(0).max(365).optional() },
       annotations: { readOnlyHint: true },
     },
-    async ({ query }) =>
+    async ({ query, expiring_within_days }) =>
       json(
-        listItems({ q: query, pantryOnly: true }).map((i) => ({
+        (expiring_within_days !== undefined ? expiringItems(expiring_within_days) : listItems({ q: query, pantryOnly: true })).map((i) => ({
           name: i.name,
           aisle: i.category_name,
           amount: [i.pantry_quantity, i.pantry_unit].filter((x) => x !== null).join(' ') || null,
           bought: i.bought_at,
+          use_by: i.expires_at,
+          days_left: i.expires_at ? daysLeft(i.expires_at) : null,
+          keeps_days: i.keeps_days,
           from: i.pantry_source,
           last_paid: i.pack_price !== null ? { pack_price: i.pack_price, pack: i.pack_label, unit_price: i.unit_price, per: i.price_unit, on: i.price_at } : null,
         }))
@@ -416,11 +421,20 @@ function buildServer(): McpServer {
     'update_pantry',
     {
       title: 'Update the pantry',
-      description: 'Add things now at home ("2 kg rice") and/or mark things used up (by name).',
-      inputSchema: { add: z.array(z.string().min(1)).optional(), used_up: z.array(z.string().min(1)).optional() },
+      description:
+        'Add things now at home ("2 kg rice"), mark things used up (by name), and/or set use-by dates: use_by is the date on ' +
+        'the pack (YYYY-MM-DD); keeps_days is how long that item usually lasts and is remembered for every later purchase ' +
+        '(e.g. 90 for mince kept in the freezer).',
+      inputSchema: {
+        add: z.array(z.string().min(1)).optional(),
+        used_up: z.array(z.string().min(1)).optional(),
+        expiry: z
+          .array(z.object({ name: z.string().min(1), use_by: z.string().optional(), keeps_days: z.number().int().min(1).max(3650).optional() }))
+          .optional(),
+      },
       annotations: { readOnlyHint: false },
     },
-    async ({ add, used_up }) => {
+    async ({ add, used_up, expiry }) => {
       const added = (add ?? []).map((text) => {
         const p = parseIngredient(text);
         return addToPantry({ name: p.name, quantity: p.quantity, unit: p.unit, note: p.note, source: 'ai' }).name;
@@ -433,7 +447,19 @@ function buildServer(): McpServer {
           removed.push(item.name);
         }
       }
-      return json({ added, removed });
+      const dated: { name: string; use_by: string | null; keeps_days: number | null }[] = [];
+      const notFound: string[] = [];
+      for (const e of expiry ?? []) {
+        const item = findItem({ name: e.name });
+        if (!item) {
+          notFound.push(e.name);
+          continue;
+        }
+        if (e.use_by !== undefined && !isDate(e.use_by)) throw new Error(`use_by for ${e.name} must be YYYY-MM-DD`);
+        const r = setExpiry(item.id, { expires_at: e.use_by, keeps_days: e.keeps_days });
+        dated.push({ name: r.name, use_by: r.expires_at, keeps_days: r.keeps_days });
+      }
+      return json({ added, removed, dated, ...(notFound.length ? { not_found: notFound } : {}) });
     }
   );
 

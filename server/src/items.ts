@@ -22,6 +22,8 @@ export interface ItemRow {
   pantry_note: string | null;
   pantry_source: string | null;
   bought_at: string | null;
+  expires_at: string | null;
+  keeps_days: number | null;
   pack_price: number | null;
   pack_label: string | null;
   unit_price: number | null;
@@ -157,6 +159,8 @@ export const mergeItems = db.transaction((fromId: string, intoId: string): ItemR
     `UPDATE items SET
        in_pantry = MAX(in_pantry, ?), bought_at = MAX(COALESCE(bought_at, ''), COALESCE(?, '')),
        pantry_quantity = COALESCE(pantry_quantity, ?), pantry_unit = COALESCE(pantry_unit, ?),
+       expires_at = CASE WHEN expires_at IS NULL OR ? < expires_at THEN COALESCE(?, expires_at) ELSE expires_at END,
+       keeps_days = COALESCE(keeps_days, ?),
        use_count = use_count + ?, category_id = COALESCE(category_id, ?),
        pack_price = CASE WHEN ? THEN ? ELSE pack_price END, pack_label = CASE WHEN ? THEN ? ELSE pack_label END,
        unit_price = CASE WHEN ? THEN ? ELSE unit_price END, price_unit = CASE WHEN ? THEN ? ELSE price_unit END,
@@ -168,6 +172,9 @@ export const mergeItems = db.transaction((fromId: string, intoId: string): ItemR
     from.bought_at,
     from.pantry_quantity,
     from.pantry_unit,
+    from.expires_at,
+    from.expires_at,
+    from.keeps_days,
     from.use_count,
     from.category_id,
     ...[from.pack_price, from.pack_label, from.unit_price, from.price_unit, from.price_source, from.price_at].flatMap((v) => [
@@ -232,6 +239,7 @@ export function addToPantry(input: {
   note?: string | null;
   source?: string;
   bought_at?: string | null;
+  expires_at?: string | null;
 }): ItemRow {
   const item = input.itemId ? getItem(input.itemId) : ensureItem(input.name!);
   if (!item) throw new Error('Item not found');
@@ -242,16 +250,75 @@ export function addToPantry(input: {
   const amount = item.in_pantry
     ? addAmounts({ quantity: item.pantry_quantity, unit: item.pantry_unit }, incoming) ?? incoming
     : incoming;
+  // Its use-by date: given, or worked out from how long it usually keeps.
+  // What was already at home goes off first, so the earlier date stays.
+  const expiry = input.expires_at ?? (item.keeps_days ? addDays(boughtAt, item.keeps_days) : null);
+  const expiresAt = item.in_pantry ? earlier(item.expires_at, expiry) : expiry;
   db.prepare(
     `UPDATE items SET in_pantry = 1, pantry_quantity = ?, pantry_unit = ?, pantry_note = COALESCE(?, pantry_note),
-       pantry_source = ?, bought_at = MAX(COALESCE(bought_at, ''), ?), updated_at = ? WHERE id = ?`
-  ).run(amount.quantity, amount.unit, input.note ?? null, input.source ?? 'manual', boughtAt, now(), item.id);
+       pantry_source = ?, bought_at = MAX(COALESCE(bought_at, ''), ?), expires_at = ?, updated_at = ? WHERE id = ?`
+  ).run(amount.quantity, amount.unit, input.note ?? null, input.source ?? 'manual', boughtAt, expiresAt, now(), item.id);
   return getItem(item.id)!;
+}
+
+// ---------- expiry ----------
+
+export const isDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v));
+
+/** Today as YYYY-MM-DD in the add-on's own time zone. */
+export function today(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date.slice(0, 10)}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+}
+
+/** Whole days from today to a date: 0 today, negative once past. */
+export function daysLeft(date: string): number {
+  return Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today()}T00:00:00Z`)) / 86400000);
+}
+
+function earlier(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return a < b ? a : b;
+}
+
+/**
+ * Set the use-by date of what's at home and/or how long the item usually
+ * keeps. A new keeps-for fills in a missing date from when it was bought.
+ */
+export function setExpiry(itemId: string, input: { expires_at?: string | null; keeps_days?: number | null }): ItemRow {
+  const item = getItem(itemId);
+  if (!item) throw new Error('Item not found');
+  if (input.expires_at != null && !isDate(input.expires_at)) throw new Error('Use-by date must be YYYY-MM-DD');
+  if (input.keeps_days != null && !(Number.isInteger(input.keeps_days) && input.keeps_days > 0 && input.keeps_days <= 3650)) {
+    throw new Error('Keeps for must be a whole number of days');
+  }
+  const keeps = input.keeps_days !== undefined ? input.keeps_days : item.keeps_days;
+  let expires = input.expires_at !== undefined ? input.expires_at : item.expires_at;
+  if (input.expires_at === undefined && input.keeps_days && item.in_pantry && !item.expires_at) {
+    expires = addDays(item.bought_at ?? today(), input.keeps_days);
+  }
+  db.prepare('UPDATE items SET expires_at = ?, keeps_days = ?, updated_at = ? WHERE id = ?').run(expires, keeps, now(), itemId);
+  return getItem(itemId)!;
+}
+
+/** What's at home and past, or within `days` of, its use-by date — soonest first. */
+export function expiringItems(days = 7) {
+  return db
+    .prepare(
+      `SELECT i.*, c.name AS category_name FROM items i LEFT JOIN categories c ON c.id = i.category_id
+       WHERE i.in_pantry = 1 AND i.expires_at IS NOT NULL AND i.expires_at <= ? ORDER BY i.expires_at, i.name COLLATE NOCASE`
+    )
+    .all(addDays(today(), days)) as (ItemRow & { category_name: string | null })[];
 }
 
 export function removeFromPantry(itemId: string) {
   db.prepare(
-    'UPDATE items SET in_pantry = 0, pantry_quantity = NULL, pantry_unit = NULL, pantry_note = NULL, updated_at = ? WHERE id = ?'
+    'UPDATE items SET in_pantry = 0, pantry_quantity = NULL, pantry_unit = NULL, pantry_note = NULL, expires_at = NULL, updated_at = ? WHERE id = ?'
   ).run(now(), itemId);
 }
 

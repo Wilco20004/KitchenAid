@@ -77,3 +77,22 @@ export function unitPriceLabel(unitPrice: number | null, priceUnit: string | nul
   if (priceUnit === 'ml') return `${rand(unitPrice * 1000)}/L`;
   return `${rand(unitPrice)} each`;
 }
+
+/** Whole days from today (local) to a YYYY-MM-DD date: 0 today, negative once past. */
+export function daysUntil(date: string): number {
+  const [y, m, d] = date.split('-').map(Number);
+  const now = new Date();
+  return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+}
+
+/** "Expired 2 days ago", "Use today", "Use by tomorrow", "Use within 5 days", "Use by 12 Oct". */
+export function expiryLabel(date: string): { text: string; level: 'past' | 'soon' | 'ok' } {
+  const n = daysUntil(date);
+  if (n < 0) return { text: n === -1 ? 'Expired yesterday' : `Expired ${-n} days ago`, level: 'past' };
+  if (n === 0) return { text: 'Use today', level: 'soon' };
+  if (n === 1) return { text: 'Use by tomorrow', level: 'soon' };
+  if (n <= 7) return { text: `Use within ${n} days`, level: 'soon' };
+  const [y, m, d] = date.split('-').map(Number);
+  const when = new Date(y, m - 1, d).toLocaleDateString([], { day: 'numeric', month: 'short', ...(y !== new Date().getFullYear() ? { year: 'numeric' } : {}) });
+  return { text: `Use by ${when}`, level: 'ok' };
+}

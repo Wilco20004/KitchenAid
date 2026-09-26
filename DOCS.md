@@ -69,7 +69,20 @@ The same **Shopping list** button is on every recipe.
 **Pantry** shows what's at home, grouped by aisle. Things arrive when you
 clear ticked items off the shopping list, from BudgetPro slips (below), by
 scanning a barcode, or by typing ("2 kg rice"). **Used up** takes them out.
-Deliberately no expiry dates or stock counts.
+Deliberately no stock counts.
+
+**Use-by dates.** Tap an item at home and set the date on the pack, or set
+how long it **usually keeps** (quick picks: 3 days, a week, a month, 3 or 6
+months). That's remembered for the item, so every later purchase — from a
+slip, the shopping list or by hand — gets its date on its own: set mince in
+the freezer to 3 months once and each new packet is dated. Buying more of
+something already at home keeps the earlier date, since the older packet
+goes off first. Anything expired or due within a week sits in **Use soon**
+at the top of the pantry.
+
+For a Home Assistant sensor or notification, `GET /api/pantry/expiring?days=3`
+(through Ingress, or on the add-on's port on your network) returns
+`{ count, expired, items: [{ name, use_by, days_left }] }`.
 
 Every pantry line is an **item** in a catalogue (see *All items*). An item
 is the kind of thing, not the brand — "Brown onion soup" — and can have any
@@ -173,7 +186,9 @@ Tools: `search_prices`, `price_history`, `price_shopping_list`,
 `update_pantry`, `find_item`, `prices_paid`, `sync_budgetpro`.
 
 Ask things like "Where's this week's shopping cheapest?", "What does the
-bobotie cost per serving?", or "What can I make with what's in the pantry?".
+bobotie cost per serving?", "What can I make with what's in the pantry?", or
+"What should we cook this week to use up what's expiring?". `get_pantry`
+includes use-by dates and `update_pantry` can set them.
 
 ## Pantry staples
 

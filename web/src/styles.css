@@ -2191,3 +2191,49 @@ table.mini tr.winner td {
 .store-tag.s-checkers {
   background: #00a651;
 }
+
+/* ---------- use-by dates ---------- */
+
+.expiry {
+  display: inline-block;
+  margin-right: 0.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-strip .expiry {
+  margin-left: 0.4rem;
+}
+
+.expiry.ok {
+  padding: 0;
+  font-weight: 400;
+}
+
+.expiry.soon {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+
+.expiry.past {
+  background: var(--danger);
+  color: #fff;
+}
+
+.aisle.use-soon h2 {
+  color: var(--warn-ink);
+}
+
+.expiry-input {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.expiry-input input {
+  flex: 1;
+  min-width: 0;
+}

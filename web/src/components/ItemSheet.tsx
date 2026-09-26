@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { Category, Item, ItemAlias, ItemDetail } from '../types';
-import { formatAmount, rand, unitPriceLabel } from '../utils/format';
+import { expiryLabel, formatAmount, rand, unitPriceLabel } from '../utils/format';
 import Modal from './Modal';
 import Icon from './Icon';
 import BarcodeScanner from './BarcodeScanner';
@@ -12,6 +12,15 @@ const KIND_LABEL: Record<ItemAlias['kind'], string> = {
   slip: 'On slips as',
   store: 'Shop product',
 };
+
+// Quick picks for "keeps for": fridge, a week, a month, freezer.
+const KEEPS_PRESETS: [string, number][] = [
+  ['3 days', 3],
+  ['1 week', 7],
+  ['1 month', 30],
+  ['3 months', 90],
+  ['6 months', 180],
+];
 
 const SOURCE_LABEL: Record<string, string> = {
   budgetpro: 'from a BudgetPro slip',
@@ -47,6 +56,7 @@ export default function ItemSheet({
   const [newBarcode, setNewBarcode] = useState('');
   const [scanning, setScanning] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [keeps, setKeeps] = useState('');
 
   useEffect(() => {
     api
@@ -54,6 +64,7 @@ export default function ItemSheet({
       .then((i) => {
         setItem(i);
         setName(i.name);
+        setKeeps(i.keeps_days?.toString() ?? '');
       })
       .catch((e) => setError(e.message));
   }, [itemId]);
@@ -65,6 +76,7 @@ export default function ItemSheet({
       const fresh = await api.getCatalogItem(itemId);
       setItem(fresh);
       setName(fresh.name);
+      setKeeps(fresh.keeps_days?.toString() ?? '');
       onChanged();
     } catch (e: any) {
       setError(e.message);
@@ -93,6 +105,18 @@ export default function ItemSheet({
     const c = code.replace(/\s+/g, '');
     if (c) run(() => api.addAlias(item!.id, 'barcode', c)).then(() => setNewBarcode(''));
   }
+
+  function saveKeeps(value: string) {
+    const days = value.trim() ? Number(value) : null;
+    if (days === item!.keeps_days) return;
+    if (days !== null && !(Number.isInteger(days) && days > 0)) {
+      setError('Keeps for must be a whole number of days');
+      return;
+    }
+    run(() => api.setExpiry(item!.id, { keeps_days: days }));
+  }
+
+  const expiry = item.in_pantry && item.expires_at ? expiryLabel(item.expires_at) : null;
 
   function savePrice(e: FormEvent) {
     e.preventDefault();
@@ -137,6 +161,7 @@ export default function ItemSheet({
             {(item.pantry_quantity !== null || item.pantry_unit) && <span> · {formatAmount(item.pantry_quantity, item.pantry_unit)}</span>}
             {item.bought_at && <span className="muted small"> · bought {item.bought_at}</span>}
             {item.pantry_source && <span className="muted small"> · {SOURCE_LABEL[item.pantry_source] ?? item.pantry_source}</span>}
+            {expiry && <span className={`expiry ${expiry.level}`}>{expiry.text}</span>}
           </>
         ) : (
           <span className="muted">Not at home</span>
@@ -160,6 +185,52 @@ export default function ItemSheet({
           </select>
         </label>
       </div>
+
+      <section className="sheet-section">
+        <h3>Use by</h3>
+        <div className="field-grid two">
+          {item.in_pantry ? (
+            <label className="field">
+              <span className="label">Date on the pack</span>
+              <span className="expiry-input">
+                <input
+                  type="date"
+                  value={item.expires_at ?? ''}
+                  onChange={(e) => run(() => api.setExpiry(item.id, { expires_at: e.target.value || null }))}
+                />
+                {item.expires_at && (
+                  <button type="button" className="icon-button" onClick={() => run(() => api.setExpiry(item.id, { expires_at: null }))} aria-label="Clear date">
+                    <Icon name="x" size={14} />
+                  </button>
+                )}
+              </span>
+            </label>
+          ) : (
+            <p className="muted small">Not at home — a date is set when it's bought.</p>
+          )}
+          <label className="field">
+            <span className="label">Usually keeps for (days)</span>
+            <input
+              inputMode="numeric"
+              placeholder="e.g. 90 in the freezer"
+              value={keeps}
+              onChange={(e) => setKeeps(e.target.value.replace(/[^0-9]/g, ''))}
+              onBlur={() => saveKeeps(keeps)}
+              onKeyDown={(e) => e.key === 'Enter' && saveKeeps(keeps)}
+            />
+          </label>
+        </div>
+        <div className="chip-row tight">
+          {KEEPS_PRESETS.map(([label, days]) => (
+            <button key={days} type="button" className={`chip${item.keeps_days === days ? ' active' : ''}`} onClick={() => saveKeeps(String(days))}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="hint">
+          Remembered for {item.name}: each time it's bought (slip, shopping list or by hand) the use-by date is filled in from this.
+        </p>
+      </section>
 
       <section className="sheet-section">
         <div className="row-between">

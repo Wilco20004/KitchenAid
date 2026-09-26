@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { BarcodeResult, BudgetProStatus, Category, Item } from '../types';
-import { formatAmount, unitPriceLabel } from '../utils/format';
+import { daysUntil, expiryLabel, formatAmount, unitPriceLabel } from '../utils/format';
 import Icon from '../components/Icon';
 import Modal from '../components/Modal';
 import ItemSheet from '../components/ItemSheet';
@@ -87,18 +87,29 @@ export default function Pantry() {
     return (items ?? []).filter((i) => !query || i.name.toLowerCase().includes(query));
   }, [items, q]);
 
-  // Group by aisle, in shop order, like the shopping list.
+  // At home and expired or going off within a week: first, soonest on top.
+  const useSoon = useMemo(
+    () =>
+      view === 'home'
+        ? shown.filter((i) => i.expires_at && daysUntil(i.expires_at) <= 7).sort((a, b) => a.expires_at!.localeCompare(b.expires_at!))
+        : [],
+    [shown, view]
+  );
+
+  // The rest grouped by aisle, in shop order, like the shopping list.
   const groups = useMemo(() => {
     const order = new Map(categories.map((c, i) => [c.id, i]));
     const map = new Map<string, { name: string; pos: number; items: Item[] }>();
     for (const i of shown) {
+      if (useSoon.includes(i)) continue;
       const key = i.category_id && order.has(i.category_id) ? i.category_id : '';
       const g = map.get(key) ?? { name: key ? categories.find((c) => c.id === key)!.name : 'Other', pos: key ? order.get(key)! : 999, items: [] };
       g.items.push(i);
       map.set(key, g);
     }
-    return [...map.values()].sort((a, b) => a.pos - b.pos);
-  }, [shown, categories]);
+    const sorted = [...map.values()].sort((a, b) => a.pos - b.pos);
+    return useSoon.length ? [{ name: 'Use soon', pos: -1, items: useSoon, soon: true }, ...sorted] : sorted;
+  }, [shown, categories, useSoon]);
 
   return (
     <div className="pantry">
@@ -164,12 +175,14 @@ export default function Pantry() {
         </div>
       ) : (
         groups.map((g) => (
-          <section key={g.name} className="aisle">
+          <section key={g.name} className={`aisle${'soon' in g ? ' use-soon' : ''}`}>
             <h2>
               {g.name} <span className="count">{g.items.length}</span>
             </h2>
             <ul className="shop-list">
-              {g.items.map((i) => (
+              {g.items.map((i) => {
+                const expiry = i.in_pantry && i.expires_at ? expiryLabel(i.expires_at) : null;
+                return (
                 <li key={i.id}>
                   <button type="button" className="shop-item" onClick={() => setOpenId(i.id)}>
                     <span className={`dot${i.in_pantry ? ' on' : ''}`} aria-hidden="true" />
@@ -181,6 +194,7 @@ export default function Pantry() {
                         ) : null}
                       </span>
                       <span className="muted tiny">
+                        {expiry && <span className={`expiry ${expiry.level}`}>{expiry.text}</span>}
                         {[
                           unitPriceLabel(i.unit_price, i.price_unit),
                           i.in_pantry && i.bought_at ? `bought ${i.bought_at}` : null,
@@ -197,7 +211,8 @@ export default function Pantry() {
                     </button>
                   )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </section>
         ))

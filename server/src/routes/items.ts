@@ -7,13 +7,17 @@ import {
   AliasKind,
   ensureItem,
   findItem,
+  daysLeft,
+  expiringItems,
   getItem,
+  isDate,
   itemDetail,
   latestPricesByStore,
   listItems,
   mergeItems,
   removeAlias,
   removeFromPantry,
+  setExpiry,
   setPackPrice,
 } from '../items';
 import { budgetProStatus, syncBudgetPro } from '../budgetpro';
@@ -94,12 +98,26 @@ itemsRouter.post('/pantry', (req, res) => {
   const text = String(req.body?.text ?? '').trim();
   if (!text) return res.status(400).json({ error: 'Type what you have' });
   const p = parseIngredient(text);
-  res.status(201).json(addToPantry({ name: p.name, quantity: p.quantity, unit: p.unit, note: p.note }));
+  const expires = req.body?.expires_at ?? null;
+  if (expires !== null && !isDate(expires)) return res.status(400).json({ error: 'Use-by date must be YYYY-MM-DD' });
+  res.status(201).json(addToPantry({ name: p.name, quantity: p.quantity, unit: p.unit, note: p.note, expires_at: expires }));
+});
+
+// GET /api/pantry/expiring?days=7 — at home and past, or near, its use-by
+// date, soonest first. Handy for a Home Assistant REST sensor.
+itemsRouter.get('/pantry/expiring', (req, res) => {
+  const days = Math.min(365, Math.max(0, Number(req.query.days ?? 7) || 0));
+  const items = expiringItems(days).map((i) => ({ id: i.id, name: i.name, use_by: i.expires_at, days_left: daysLeft(i.expires_at!) }));
+  res.json({ days, count: items.length, expired: items.filter((i) => i.days_left < 0).length, items });
 });
 
 itemsRouter.post('/items/:id/pantry', (req, res) => {
+  const expires = req.body?.expires_at ?? null;
+  if (expires !== null && !isDate(expires)) return res.status(400).json({ error: 'Use-by date must be YYYY-MM-DD' });
   try {
-    res.json(addToPantry({ itemId: req.params.id, quantity: req.body?.quantity ?? null, unit: req.body?.unit ?? null, note: req.body?.note ?? null }));
+    res.json(
+      addToPantry({ itemId: req.params.id, quantity: req.body?.quantity ?? null, unit: req.body?.unit ?? null, note: req.body?.note ?? null, expires_at: expires })
+    );
   } catch (e) {
     fail(res, e, 404);
   }
@@ -109,6 +127,20 @@ itemsRouter.post('/items/:id/pantry', (req, res) => {
 itemsRouter.delete('/items/:id/pantry', (req, res) => {
   removeFromPantry(req.params.id);
   res.json(itemDetail(req.params.id));
+});
+
+// PUT /api/items/:id/expiry { expires_at: "2026-10-03" | null, keeps_days: 90 | null } — either or both
+itemsRouter.put('/items/:id/expiry', (req, res) => {
+  const body = req.body ?? {};
+  const input: { expires_at?: string | null; keeps_days?: number | null } = {};
+  if ('expires_at' in body) input.expires_at = body.expires_at || null;
+  if ('keeps_days' in body) input.keeps_days = body.keeps_days === null || body.keeps_days === '' ? null : Number(body.keeps_days);
+  try {
+    setExpiry(req.params.id, input);
+    res.json(itemDetail(req.params.id));
+  } catch (e: any) {
+    fail(res, e, e.message === 'Item not found' ? 404 : 400);
+  }
 });
 
 // PUT /api/items/:id/price { pack_price: 72, pack_label: "18 eggs" } — set by hand

@@ -154,6 +154,8 @@ export interface Item {
   pantry_note: string | null;
   pantry_source: string | null;
   bought_at: string | null;
+  expires_at: string | null;
+  keeps_days: number | null;
   pack_price: number | null;
   pack_label: string | null;
   unit_price: number | null;

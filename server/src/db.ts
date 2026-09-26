@@ -122,8 +122,11 @@ db.exec(`
   -- (those are item_aliases). Drives autocomplete and remembers the aisle.
   --
   -- It also IS the pantry: in_pantry = 1 means it's at home. Deliberately
-  -- light — no expiry dates or stock levels like Grocy: it goes in when you
-  -- buy it (a BudgetPro slip, or ticking it off the list) and out when used up.
+  -- light — no stock levels like Grocy: it goes in when you buy it (a
+  -- BudgetPro slip, or ticking it off the list) and out when used up.
+  -- expires_at is the use-by date of the packet at home that goes off first;
+  -- keeps_days is how long this item usually lasts (mince in the freezer: 90),
+  -- remembered so every later purchase gets its date without asking.
   --
   -- unit_price is what it last cost per item / per gram / per ml
   -- (price_unit), worked out from the pack bought — R72 for "EGGS 18S" is
@@ -141,6 +144,8 @@ db.exec(`
     pantry_note TEXT,
     pantry_source TEXT,
     bought_at TEXT,
+    expires_at TEXT,
+    keeps_days INTEGER,
     pack_price REAL,
     pack_label TEXT,
     unit_price REAL,
@@ -278,6 +283,14 @@ db.exec(`
     created_at TEXT NOT NULL
   );
 `);
+
+// Columns added after a table was first made, for databases older than them.
+function addColumn(table: string, column: string, type: string) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+}
+addColumn('items', 'expires_at', 'TEXT');
+addColumn('items', 'keeps_days', 'INTEGER');
 
 // First run: a default list, a sensible aisle order, and a few staples.
 const now = new Date().toISOString();
