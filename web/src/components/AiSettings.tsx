@@ -51,7 +51,7 @@ function CopyBox({ text, rows = 2 }: { text: string; rows?: number }) {
 export function AiAssistants() {
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [host, setHost] = useState(() => savedHost() || (window.location.port === '8096' ? window.location.hostname : ''));
+  const [host, setHost] = useState(() => savedHost() || (window.location.port === '8099' ? window.location.hostname : ''));
   const [tool, setTool] = useState<'claude-code' | 'claude-desktop' | 'gemini'>('claude-code');
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export function AiAssistants() {
     setToken((await api.regenerateMcpToken()).token);
   }
 
-  const url = `http://${host.trim() || '<your-HA-IP>'}:8096/mcp`;
+  const url = `http://${host.trim() || '<your-HA-IP>'}:8099/mcp`;
   const t = token ?? '<token>';
   const snippets = {
     'claude-code': `claude mcp add --transport http kitchenaid ${url} --header "Authorization: Bearer ${t}"`,

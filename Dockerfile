@@ -15,7 +15,7 @@ RUN npm prune --omit=dev
 FROM node:20-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-ENV PORT=8096
+ENV PORT=8099
 ENV KITCHENAID_DATA_DIR=/data
 
 COPY --from=build /app/server/package.json server/package.json
@@ -24,5 +24,5 @@ COPY --from=build /app/server/dist server/dist
 COPY --from=build /app/web/dist web/dist
 
 VOLUME ["/data"]
-EXPOSE 8096
+EXPOSE 8099
 CMD ["node", "server/dist/index.js"]

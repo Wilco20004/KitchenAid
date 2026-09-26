@@ -6,9 +6,9 @@ export default defineConfig({
   base: './',
   server: {
     proxy: {
-      '/api': 'http://localhost:8096',
-      '/uploads': 'http://localhost:8096',
-      '/mcp': 'http://localhost:8096',
+      '/api': 'http://localhost:8099',
+      '/uploads': 'http://localhost:8099',
+      '/mcp': 'http://localhost:8099',
     },
   },
   build: {

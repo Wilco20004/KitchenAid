@@ -13,7 +13,7 @@ See [DOCS.md](DOCS.md) for how to use it.
 
 ```bash
 npm install
-npm run dev:server   # API on :8096
+npm run dev:server   # API on :8099
 npm run dev:web      # Vite on :5173, proxies /api and /uploads
 npm test             # parsers, importers, items, costing, store adapters
 ```

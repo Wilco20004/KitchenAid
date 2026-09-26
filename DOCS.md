@@ -130,7 +130,7 @@ the last week are read the first time. BudgetPro itself is never changed.
 
 ## AI assistants (MCP)
 
-KitchenAid's port 8096 serves an MCP endpoint at `/mcp` for Claude (Code or
+KitchenAid's port 8099 serves an MCP endpoint at `/mcp` for Claude (Code or
 Desktop), Gemini CLI or any MCP client. **Settings → AI assistants** (opened
 from the Home Assistant sidebar) shows the token and ready-to-paste setup
 for each. Requests from the LAN need the token as

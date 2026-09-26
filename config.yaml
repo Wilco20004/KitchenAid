@@ -1,5 +1,5 @@
 name: KitchenAid
-version: "0.2.0"
+version: "0.2.1"
 slug: kitchenaid
 description: Recipes, meal plan, shopping list, pantry with prices paid, and grocery price comparison — with an MCP endpoint for AI assistants
 url: https://github.com/Wilco20004/KitchenAid
@@ -11,14 +11,14 @@ init: false
 startup: application
 boot: auto
 ingress: true
-ingress_port: 8096
+ingress_port: 8099
 panel_icon: mdi:silverware-fork-knife
 panel_title: Kitchen
-webui: "http://[HOST]:[PORT:8096]/"
+webui: "http://[HOST]:[PORT:8099]/"
 ports:
-  8096/tcp: 8096
+  8099/tcp: 8099
 ports_description:
-  8096/tcp: Web UI and the MCP endpoint for AI assistants (/mcp needs the token from Settings)
+  8099/tcp: Web UI and the MCP endpoint for AI assistants (/mcp needs the token from Settings)
 options:
   budgetpro_url: "http://10.1.1.3:8097"
   budgetpro_token: ""

@@ -16,7 +16,7 @@ import { startWatchlistRefresher } from './prices/search';
 import { startBudgetProSync } from './budgetpro';
 
 const app = express();
-const PORT = Number(process.env.PORT) || 8096;
+const PORT = Number(process.env.PORT) || 8099;
 
 // Pasted page source can be large.
 app.use(express.json({ limit: '5mb' }));

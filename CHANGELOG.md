@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 — 2026-09-26
+
+- Moved to port 8099 (web UI, Ingress and the MCP endpoint). AI assistants
+  set up against :8096 need the new address from Settings → AI assistants.
+
 ## 0.2.0 — 2026-09-26
 
 - **Prices** tab: PriceScout is now part of KitchenAid — compare Pick n Pay,
