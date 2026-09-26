@@ -13,6 +13,9 @@ const SYNC_EVERY_MS = 30 * 60 * 1000;
 const FIRST_SYNC_DAYS = 7;
 // Prices (not pantry) are learnt from slips this far back.
 const HISTORY_DAYS = 180;
+// No single grocery pack costs this much; a line that does was misread
+// (the slip's total or a card number read as a price).
+export const MAX_PACK_PRICE = 2000;
 
 export interface SyncResult {
   receipts: number;
@@ -105,8 +108,11 @@ async function doSync(): Promise<SyncResult> {
   // at Checkers or SPAR — without pouring old shopping into the pantry.
   const historySince = new Date(Date.now() - HISTORY_DAYS * 86400000).toISOString().slice(0, 10);
   const dateOf = (r: BpReceiptSummary) => r.receipt_date ?? r.created_at.slice(0, 10);
+  // A slip dated in the future was misread (OCR turned "2025" into "2038"),
+  // and so, almost always, were its lines — leave it until it's fixed in BudgetPro.
+  const latest = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const receipts = (await bpGet<BpReceiptSummary[]>('receipts')).filter(
-    (r) => r.status === 'parsed' && r.item_count > 0 && dateOf(r) >= historySince
+    (r) => r.status === 'parsed' && r.item_count > 0 && dateOf(r) >= historySince && dateOf(r) <= latest
   );
   const seen = (ext: string) => Boolean(db.prepare('SELECT 1 FROM imported WHERE external_id = ?').get(ext));
   const mark = (ext: string, id: string) => db.prepare('INSERT OR REPLACE INTO imported (external_id, local_id) VALUES (?, ?)').run(ext, id);
@@ -123,7 +129,9 @@ async function doSync(): Promise<SyncResult> {
       continue;
     }
     const receipt = await bpGet<{ items: BpReceiptItem[]; receipt_date: string | null; merchant_name: string | null }>(`receipts/${summary.id}`);
-    const bought = receipt.items.filter((i) => i.amount > 0 && ids.has(i.category_id ?? i.product_category_id ?? ''));
+    const bought = receipt.items.filter(
+      (i) => i.amount > 0 && i.amount / (i.quantity > 0 ? i.quantity : 1) <= MAX_PACK_PRICE && ids.has(i.category_id ?? i.product_category_id ?? '')
+    );
     const boughtAt = receipt.receipt_date ?? summary.created_at.slice(0, 10);
     const store = storeName(receipt.merchant_name ?? summary.merchant_name);
 

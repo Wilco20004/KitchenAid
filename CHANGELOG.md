@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 — 2026-09-26
+
+- **Slip lines no longer land on the wrong item.** A line for a different
+  kind of product — potato *chips*, a peanut butter energy *bar*, a
+  *flavoured* yoghurt, a chocolate *bar* — isn't matched to Potato, Butter,
+  Bananas or Milk any more, so recipe costs stop using snack prices.
+- **Better shop matches in "What will it cost?"**: whole words only ("rice"
+  no longer finds Cori*celli* olive oil), no pet food or baby food, no
+  sauces, pastes or spice blends unless asked for, and plain onions or
+  potatoes before spring, baby or pickling ones.
+- **Misread slips are ignored**: a BudgetPro slip dated in the future
+  (OCR read the year wrong) is skipped until it's fixed in BudgetPro, and so
+  is any line priced over R2,000 for one pack.
+- **One-off clean-up on first start**: prices from misread slips are
+  dropped, items that only existed because of one are deleted (and leave
+  the pantry), and wrongly linked slip lines move to an item of their own.
+  What it did is written to the add-on log.
+
 ## 0.4.0 — 2026-09-26
 
 - **Live Checkers prices, optional**, through Parse (parse.bot) — a paid,

@@ -3,6 +3,7 @@ import { db } from './db';
 import { addAmounts, nameKey, SIZE_WORDS } from './ingredients';
 import { guessCategoryName } from './categorize';
 import { parsePackSize } from './prices/units';
+import { differentProduct } from './productForms';
 
 // The item catalogue (see the items / item_aliases tables in db.ts): finding
 // "the same thing" across names, barcodes and slip spellings, the pantry
@@ -186,6 +187,21 @@ export const mergeItems = db.transaction((fromId: string, intoId: string): ItemR
   );
   return getItem(intoId)!;
 });
+
+/** Delete an item with its barcodes, names and prices; shopping lines keep their text. */
+export function deleteItem(id: string): boolean {
+  return db.prepare('DELETE FROM items WHERE id = ?').run(id).changes > 0;
+}
+
+/** Put the item's "last price" back to its newest remaining price (or none). */
+export function refreshLatestPrice(itemId: string) {
+  const p = db
+    .prepare('SELECT pack_price, pack_label, unit_price, price_unit, source, seen_at FROM item_prices WHERE item_id = ? ORDER BY seen_at DESC, rowid DESC LIMIT 1')
+    .get(itemId) as { pack_price: number; pack_label: string; unit_price: number; price_unit: string; source: string; seen_at: string } | undefined;
+  db.prepare(
+    'UPDATE items SET pack_price = ?, pack_label = ?, unit_price = ?, price_unit = ?, price_source = ?, price_at = ?, updated_at = ? WHERE id = ?'
+  ).run(p?.pack_price ?? null, p?.pack_label ?? null, p?.unit_price ?? null, p?.price_unit ?? null, p?.source ?? null, p?.seen_at ?? null, now(), itemId);
+}
 
 // ---------- pantry ----------
 
@@ -374,7 +390,8 @@ export function itemForSlipLine(raw: string): ItemRow {
     const head = words(key).at(-1);
     const endsRight = (k: string) => (words(k).at(-1) === head ? 1 : 0);
     const match = candidates
-      .filter((c) => c.k.length >= 3 && wordsWithin(c.k, key))
+      // …but never across product forms: "potato" isn't "potato chips".
+      .filter((c) => c.k.length >= 3 && wordsWithin(c.k, key) && !differentProduct(c.k, raw))
       .sort((a, b) => endsRight(b.k) - endsRight(a.k) || words(b.k).length - words(a.k).length || b.k.length - a.k.length)[0];
     item = match ? getItem(match.id) : undefined;
   }

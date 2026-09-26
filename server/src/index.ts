@@ -15,6 +15,7 @@ import { getMcpToken, regenerateMcpToken } from './settings';
 import { startWatchlistRefresher } from './prices/search';
 import { startBudgetProSync } from './budgetpro';
 import { startCheckersDaily } from './prices/checkersDaily';
+import { runRepairs } from './repair';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8099;
@@ -51,6 +52,7 @@ if (fs.existsSync(webDist)) {
 
 app.listen(PORT, () => {
   console.log(`KitchenAid server listening on port ${PORT}`);
+  runRepairs();
   startWatchlistRefresher();
   startBudgetProSync();
   startCheckersDaily();

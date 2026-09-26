@@ -209,9 +209,10 @@ export function catalogMatches(store: StoreAdapter, term: string): ProductResult
   const rows = db.prepare('SELECT * FROM price_products WHERE store = ? AND updated_at >= ?').all(store.id, since) as any[];
   return (
     rows
+      // Whole words only, or "rice" would find "Coricelli olive oil".
       .filter((r) => {
-        const hay = `${r.brand ?? ''} ${r.name}`.toLowerCase();
-        return words.every((w) => hay.includes(w));
+        const have = `${r.brand ?? ''} ${r.name}`.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(stemWord);
+        return words.every((w) => have.some((h) => h === w || (w.length >= 4 && h.startsWith(w))));
       })
       // Shorter names first: "Large Eggs 18" before "Egg Noodles With Chicken Flavour".
       .sort((a, b) => a.name.length - b.name.length)

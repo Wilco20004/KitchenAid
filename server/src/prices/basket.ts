@@ -2,6 +2,7 @@ import { toBase } from '../ingredients';
 import { ProductResult, search } from './search';
 import { parsePackSize } from './units';
 import { activeStores } from './stores';
+import { differentProduct } from '../productForms';
 
 // "What would this shopping list cost at each shop?" For every item, each
 // store's results are narrowed to products whose name actually contains the
@@ -76,6 +77,25 @@ function keyWords(term: string): string[] {
     .map(stem);
 }
 
+/**
+ * Every item word is a whole word of the product (stemmed, so "potato"
+ * finds "Potatoes") — not just somewhere inside it, or "rice" would find
+ * "Coricelli olive oil".
+ */
+export function hasWords(words: string[], productText: string): boolean {
+  const have = productText.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(stem);
+  return words.every((w) => have.some((h) => h === w || (w.length >= 4 && h.startsWith(w))));
+}
+
+// Words that make a product a variety of the thing rather than the thing:
+// "onions" should find a bag of onions before spring or pickling onions.
+const VARIETY = ['spring', 'baby', 'mini', 'cocktail', 'cherry', 'cubed', 'cubes', 'diced', 'sliced', 'grated', 'shredded', 'marinated', 'crumbed', 'frozen', 'dried', 'instant', 'readymade'];
+
+function varietyPenalty(productName: string, term: string): number {
+  const name = productName.toLowerCase();
+  return VARIETY.filter((w) => new RegExp(`\\b${w}\\b`).test(name) && !term.includes(w)).length;
+}
+
 function packTotal(p: ProductResult): { amount: number; family: 'mass' | 'volume' } | null {
   const size = parsePackSize(p.sizeOverride ?? [p.sizeText, p.name].filter(Boolean).join(' '));
   if (!size.unit || !size.each || size.unit === 'sheet') return null;
@@ -119,12 +139,12 @@ export async function matchItem(need: ItemNeed, opts: { alternatives?: number } 
     const relevant = result.products
       .filter((p) => p.store === s.id && p.rank < 20 && p.inStock !== false)
       .filter((p) => {
-        const hay = `${p.brand ?? ''} ${p.name}`.toLowerCase();
-        return words.every((w) => hay.includes(w)) && !isKitchenware(p.name, term);
+        return hasWords(words, `${p.brand ?? ''} ${p.name}`) && !isKitchenware(p.name, term) && !differentProduct(term, p.name);
       });
     const picks = relevant
-      .map((product) => ({ product, ...costFor(product, need) }))
-      .sort((a, b) => a.cost - b.cost || a.product.rank - b.product.rank);
+      .map((product) => ({ product, ...costFor(product, need), penalty: varietyPenalty(product.name, term) }))
+      .sort((a, b) => a.penalty - b.penalty || a.cost - b.cost || a.product.rank - b.product.rank)
+      .map(({ penalty: _p, ...pick }) => pick);
     return {
       store: s.id,
       storeName: s.name,
