@@ -16,7 +16,7 @@ import { search, toResult, ProductResult } from './prices/search';
 import { applyFilters, basisValue, Basis, sortByBasis, suspectIds } from './prices/compare';
 import { basketTotals, matchItem } from './prices/basket';
 import { listWatchlist, watchTerm } from './routes/prices';
-import { STORES } from './prices/stores';
+import { activeStores } from './prices/stores';
 
 // MCP (Model Context Protocol) endpoint, so Claude (Desktop / Code), Gemini
 // CLI or any other MCP client can check grocery prices and read the recipes,
@@ -132,7 +132,7 @@ function buildServer(): McpServer {
         term: res.term,
         basis: b,
         stores: res.stores.map((s) => ({ store: s.name, results: s.count, cached_at: s.fetchedAt, error: s.error, paused_until: s.pausedUntil })),
-        cheapest_per_store: STORES.map((s) => {
+        cheapest_per_store: activeStores().map((s) => {
           const p = sameUnit.find((x) => x.store === s.id);
           return p ? { ...product(p), value: basisValue(p, b) } : { store: s.name, none: true };
         }),

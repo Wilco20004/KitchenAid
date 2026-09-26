@@ -20,3 +20,21 @@ configuration:
   makro_pages:
     name: Makro result pages
     description: How many pages of Makro results to read per search.
+  parse_api_key:
+    name: Parse API key (Checkers prices)
+    description: Checkers blocks automated requests, so its prices come through Parse (parse.bot), a paid third-party, unofficial API. Paste your Parse key to add Checkers to price comparison; leave empty to keep it off.
+  checkers_daily_searches:
+    name: Checkers searches per day
+    description: How many broad Checkers searches (one Parse credit each) run each day to keep a local Checkers catalogue fresh. Your own searches match that catalogue and cost nothing.
+  checkers_monthly_credits:
+    name: Checkers monthly credit cap
+    description: Checkers searches stop for the month after this many Parse credits.
+  checkers_refresh_days:
+    name: Re-search a term after (days)
+    description: A broad term (e.g. "milk") isn't searched at Checkers again until this many days have passed.
+  checkers_keep_days:
+    name: Keep Checkers prices for (days)
+    description: Checkers products seen within this many days are used for comparison; older ones are ignored.
+  checkers_requests_per_minute:
+    name: Checkers requests per minute
+    description: Your Parse plan's rate limit (free plan 5, Hobby 20).

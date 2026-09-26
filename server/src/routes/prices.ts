@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import { db } from '../db';
 import { recentTerms, search, termKey, toResult } from '../prices/search';
-import { STORES } from '../prices/stores';
+import { activeStores } from '../prices/stores';
 import { matchItem } from '../prices/basket';
 import { paidPricesFor } from '../paid';
+import { options } from '../prices/config';
+import { checkersCreditsToday, checkersCreditsUsed } from '../prices/stores/checkers';
+import { candidateTerms, lastCheckersRun, runCheckersDaily } from '../prices/checkersDaily';
 
 // Price comparison across Pick n Pay, Makro and Woolworths (what used to be
 // the separate PriceScout add-on).
@@ -28,8 +31,34 @@ pricesRouter.get('/recent', (_req, res) => {
   res.json(recentTerms());
 });
 
+pricesRouter.get('/checkers', (_req, res) => {
+  res.json({
+    configured: Boolean(options.parse_api_key),
+    credits_month: checkersCreditsUsed(),
+    credit_cap_month: options.checkers_monthly_credits,
+    credits_today: checkersCreditsToday(),
+    per_day: options.checkers_daily_searches,
+    catalogue_products: (
+      db.prepare("SELECT COUNT(*) AS n FROM price_products WHERE store = 'checkers' AND updated_at >= ?").get(
+        new Date(Date.now() - options.checkers_keep_days * 86400000).toISOString()
+      ) as { n: number }
+    ).n,
+    last_run: lastCheckersRun(),
+    next_terms: options.parse_api_key ? candidateTerms().slice(0, 12) : [],
+  });
+});
+
+// POST /api/prices/checkers/run — spend what's left of today's budget now
+pricesRouter.post('/checkers/run', async (_req, res) => {
+  try {
+    res.json(await runCheckersDaily());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 pricesRouter.get('/stores', (_req, res) => {
-  res.json(STORES.map((s) => ({ id: s.id, name: s.name })));
+  res.json(activeStores().map((s) => ({ id: s.id, name: s.name })));
 });
 
 // POST /api/prices/match { name, quantity, unit } — one shopping-list item's

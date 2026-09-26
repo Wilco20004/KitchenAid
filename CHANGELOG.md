@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0 — 2026-09-26
+
+- **Live Checkers prices, optional**, through Parse (parse.bot) — a paid,
+  third-party, unofficial API, because Checkers blocks automated requests
+  itself. Off until `parse_api_key` is set in the add-on Configuration.
+- Built for a fixed credit budget: at most `checkers_daily_searches`
+  (default 10) broad searches a day and `checkers_monthly_credits`
+  (default 300) a month, each pulling up to 100 products. Terms come from
+  the shopping list, watchlist, recipes planned for the next 10 days and
+  what you buy most; a term isn't re-searched for 3 days, and terms the
+  catalogue already covers are skipped.
+- Every search, list costing and recipe estimate matches the stored
+  Checkers catalogue locally — no credits spent when you search.
+- Settings → Checkers prices shows today's and this month's usage, catalogue
+  size, what was searched and what's next, with a "use today's searches
+  now" button.
+- Store columns in "What will it cost?" follow however many stores are on.
+
 ## 0.3.0 — 2026-09-26
 
 - **Prices you paid, per shop.** Every grocery line on a BudgetPro slip is

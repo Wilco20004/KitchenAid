@@ -1,5 +1,5 @@
 name: KitchenAid
-version: "0.3.0"
+version: "0.4.0"
 slug: kitchenaid
 description: Recipes, meal plan, shopping list, pantry with prices paid, and grocery price comparison — with an MCP endpoint for AI assistants
 url: https://github.com/Wilco20004/KitchenAid
@@ -27,6 +27,12 @@ options:
   pnp_store_code: "WC21"
   woolworths_price_zone: p10
   makro_pages: 1
+  parse_api_key: ""
+  checkers_daily_searches: 10
+  checkers_monthly_credits: 300
+  checkers_refresh_days: 3
+  checkers_keep_days: 14
+  checkers_requests_per_minute: 5
 schema:
   budgetpro_url: "str?"
   budgetpro_token: "password?"
@@ -35,3 +41,9 @@ schema:
   pnp_store_code: str
   woolworths_price_zone: list(p10|p30|p60)
   makro_pages: int(1,3)
+  parse_api_key: "password?"
+  checkers_daily_searches: int(0,500)
+  checkers_monthly_credits: int(0,100000)
+  checkers_refresh_days: int(1,30)
+  checkers_keep_days: int(1,90)
+  checkers_requests_per_minute: int(1,500)

@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import { Category, GrocyImportResult, ShoppingList, Staple } from '../types';
 import Icon from '../components/Icon';
-import { AiAssistants, BudgetProSettings } from '../components/AiSettings';
+import { AiAssistants, BudgetProSettings, CheckersSettings } from '../components/AiSettings';
 
 export default function Settings() {
   const location = useLocation();
@@ -19,6 +19,7 @@ export default function Settings() {
       </div>
       <AiAssistants />
       <BudgetProSettings />
+      <CheckersSettings />
       <Aisles />
       <Staples />
       <Lists />

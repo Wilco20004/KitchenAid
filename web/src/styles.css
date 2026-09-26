@@ -2187,3 +2187,7 @@ table.mini tr.winner td {
   border-style: solid;
   background: var(--surface-2);
 }
+
+.store-tag.s-checkers {
+  background: #00a651;
+}

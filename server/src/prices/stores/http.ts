@@ -1,15 +1,21 @@
 // Every store request goes through here: one honest User-Agent, a timeout,
 // and at least MIN_GAP_MS between requests to the same store so a burst of
 // searches never hammers anyone.
-export const USER_AGENT = 'KitchenAid/0.2 (personal grocery price comparison; home use)';
+export const USER_AGENT = 'KitchenAid/0.3 (personal grocery price comparison; home use)';
 
 const MIN_GAP_MS = 2000;
 const TIMEOUT_MS = 20000;
 const nextSlot = new Map<string, number>();
 
+// A store can ask for more spacing (a paid API with a per-minute limit).
+const gaps = new Map<string, number>();
+export function setMinGap(store: string, ms: number) {
+  gaps.set(store, ms);
+}
+
 async function waitTurn(store: string) {
   const at = Math.max(Date.now(), nextSlot.get(store) ?? 0);
-  nextSlot.set(store, at + MIN_GAP_MS);
+  nextSlot.set(store, at + (gaps.get(store) ?? MIN_GAP_MS));
   const wait = at - Date.now();
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
 }

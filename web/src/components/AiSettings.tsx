@@ -189,3 +189,76 @@ export function BudgetProSettings() {
     </section>
   );
 }
+
+export function CheckersSettings() {
+  const [s, setS] = useState<CheckersStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const load = () => api.checkersStatus().then(setS).catch(() => setS(null));
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function runNow() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.runCheckers();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+      load();
+    }
+  }
+
+  if (!s) return null;
+  const left = Math.max(0, Math.min(s.per_day - s.credits_today, s.credit_cap_month - s.credits_month));
+  return (
+    <section className="panel" id="checkers">
+      <h2>Checkers prices</h2>
+      <p className="muted small">
+        Checkers blocks automated requests, so its prices come through <strong>Parse</strong> (parse.bot) — a paid, third-party,
+        unofficial API you subscribe to. To stay within your credits, KitchenAid does a few <em>broad</em> Checkers searches a day
+        (“milk”, “rice”, “onion soup”) — picked from your shopping list, watchlist, planned recipes and what you buy most — and keeps
+        what comes back as a local catalogue. Your own searches and list costing match that catalogue and cost nothing.
+      </p>
+      {s.configured ? (
+        <>
+          <p className="small">
+            Today <strong>{s.credits_today}</strong> of {s.per_day} searches · this month {s.credits_month} of {s.credit_cap_month} ·{' '}
+            <strong>{s.catalogue_products}</strong> Checkers products in the catalogue
+          </p>
+          {s.last_run && s.last_run.searched.length > 0 && (
+            <p className="muted small">
+              Last searched ({new Date(s.last_run.at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}):{' '}
+              {s.last_run.searched.map((x) => `${x.term}${x.error ? ' (failed)' : ''}`).join(', ')}
+            </p>
+          )}
+          {s.next_terms.length > 0 && <p className="muted small">Next up: {s.next_terms.join(', ')}</p>}
+          {error && <p className="error small">{error}</p>}
+          <button type="button" className="button secondary small" onClick={runNow} disabled={busy || left === 0}>
+            <Icon name="refresh" size={14} /> {busy ? 'Searching Checkers…' : left ? `Use today's ${left} search${left === 1 ? '' : 'es'} now` : 'Budget used for today'}
+          </button>
+        </>
+      ) : (
+        <p className="notice small">
+          Off. Paste your Parse API key as <code>parse_api_key</code> in the add-on's Configuration tab (and subscribe to its Checkers
+          API at parse.bot). Budget settings there default to 10 searches a day, 300 a month. Until then, Checkers and SPAR are compared
+          from your own BudgetPro slips.
+        </p>
+      )}
+    </section>
+  );
+}
+
+interface CheckersStatus {
+  configured: boolean;
+  credits_month: number;
+  credit_cap_month: number;
+  credits_today: number;
+  per_day: number;
+  catalogue_products: number;
+  last_run: { at: string; searched: { term: string; products: number; error: string | null }[] } | null;
+  next_terms: string[];
+}

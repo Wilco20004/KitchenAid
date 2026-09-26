@@ -165,6 +165,8 @@ export const api = {
   matchItem: (item: { name: string; quantity: number | null; unit: string | null }) =>
     request<ItemMatch>('api/prices/match', json('POST', item)),
 
+  checkersStatus: () => request<any>('api/prices/checkers'),
+  runCheckers: () => request<unknown>('api/prices/checkers/run', { method: 'POST' }),
   getMcpToken: () => request<{ token: string }>('api/mcp-token'),
   regenerateMcpToken: () => request<{ token: string }>('api/mcp-token', { method: 'POST' }),
 

@@ -9,6 +9,12 @@ interface Options {
   pnp_store_code: string;
   woolworths_price_zone: string;
   makro_pages: number;
+  parse_api_key: string;
+  checkers_daily_searches: number;
+  checkers_monthly_credits: number;
+  checkers_refresh_days: number;
+  checkers_keep_days: number;
+  checkers_requests_per_minute: number;
 }
 
 const defaults: Options = {
@@ -19,6 +25,16 @@ const defaults: Options = {
   // Woolworths lists prices per region as p10 / p30 / p60.
   woolworths_price_zone: 'p10',
   makro_pages: 1,
+  // Checkers comes through Parse (parse.bot), a paid third-party API: off
+  // without a key, cached longer and capped per month to save credits.
+  parse_api_key: '',
+  // A few broad searches a day ("milk", "rice") build a local Checkers
+  // catalogue; everything else matches against it for free.
+  checkers_daily_searches: 10,
+  checkers_monthly_credits: 300,
+  checkers_refresh_days: 3,
+  checkers_keep_days: 14,
+  checkers_requests_per_minute: 5,
 };
 
 function load(): Options {

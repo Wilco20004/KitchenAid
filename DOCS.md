@@ -118,11 +118,30 @@ mince → two 750 g packs), and shows each store's total and the cheapest mix
 of shops. Tap an item to see what was picked. The first check each day asks
 the stores about each item, so it takes a few seconds per item.
 
+## Live Checkers prices (optional, via Parse)
+
+Checkers blocks automated requests itself, so live Checkers prices can only
+come through **Parse** (parse.bot) — a paid, third-party, *unofficial* API
+over checkers.co.za. Whether to use it is your call; it may stop working if
+Checkers objects. To switch it on, subscribe to its Checkers API and paste
+your key as `parse_api_key` in the add-on's Configuration.
+
+Each Parse call costs a credit, so KitchenAid never calls it when you
+search. Instead, from 05:00 each day it spends at most
+`checkers_daily_searches` (default 10) credits on **broad** searches —
+"milk", "eggs", "onion soup" — picked from your shopping list, watched
+searches, recipes planned for the next 10 days and what you buy most, each
+pulling up to 100 products into a local Checkers catalogue. A term isn't
+searched again for `checkers_refresh_days` (3), terms the catalogue already
+covers are skipped, and `checkers_monthly_credits` (300) is a hard stop.
+Prices, "What will it cost?", recipe estimates and the AI tools all match
+that catalogue for free. Settings → Checkers prices shows what's been used
+and what's next, and can spend today's remaining searches straight away.
+
 ## Checkers and SPAR: prices from your slips
 
-Checkers/Shoprite turn away automated requests (even a headless browser)
-and SPAR has no web shop — each SPAR sets its own prices in the SPAR2U app.
-KitchenAid doesn't try to get around that. Instead, every grocery line on
+Without Parse — and always for SPAR, which has no web shop (each SPAR sets
+its own prices in the SPAR2U app) — every grocery line on
 your BudgetPro slips is remembered as a price **at that shop**, and **What
 will it cost?** opens with "What you paid last time": each shop's total for
 the list, and how many of its items your slips cover. The more you shop

@@ -16,4 +16,15 @@ export interface StoreAdapter {
   id: string;
   name: string;
   search(term: string): Promise<ScrapedProduct[]>;
+  /** false when not configured (e.g. no API key) — left out everywhere. */
+  enabled?: () => boolean;
+  /**
+   * 'catalog': never searched when you search. A background job fetches a few
+   * broad terms a day, and searches match those stored products locally.
+   */
+  mode?: 'live' | 'catalog';
+  /** How long stored products stay usable for a catalog store (days). */
+  keepDays?: () => number;
+  /** false = not refreshed by the background watchlist (costs credits). */
+  background?: boolean;
 }

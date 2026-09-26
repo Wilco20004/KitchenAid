@@ -136,7 +136,12 @@ export default function ListCostDialog({ items, onClose }: { items: ShoppingItem
           const cheapest = Math.min(...m.stores.map((s) => s.best?.cost ?? Infinity));
           return (
             <li key={idx} className={open === idx ? 'open' : ''}>
-              <button type="button" className="cost-row" onClick={() => setOpen(open === idx ? null : idx)}>
+              <button
+                type="button"
+                className="cost-row"
+                style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${m.stores.length}, 4.8rem)` }}
+                onClick={() => setOpen(open === idx ? null : idx)}
+              >
                 <span className="cost-name">
                   {m.name}
                   {need && (need.quantity !== null || need.unit) && <span className="muted tiny"> {formatAmount(need.quantity, need.unit)}</span>}

@@ -14,6 +14,7 @@ import { ingressOnly, requireToken } from './auth';
 import { getMcpToken, regenerateMcpToken } from './settings';
 import { startWatchlistRefresher } from './prices/search';
 import { startBudgetProSync } from './budgetpro';
+import { startCheckersDaily } from './prices/checkersDaily';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8099;
@@ -52,4 +53,5 @@ app.listen(PORT, () => {
   console.log(`KitchenAid server listening on port ${PORT}`);
   startWatchlistRefresher();
   startBudgetProSync();
+  startCheckersDaily();
 });

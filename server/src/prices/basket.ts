@@ -1,7 +1,7 @@
 import { toBase } from '../ingredients';
 import { ProductResult, search } from './search';
 import { parsePackSize } from './units';
-import { STORES } from './stores';
+import { activeStores } from './stores';
 
 // "What would this shopping list cost at each shop?" For every item, each
 // store's results are narrowed to products whose name actually contains the
@@ -113,7 +113,7 @@ export async function matchItem(need: ItemNeed, opts: { alternatives?: number } 
   const words = keyWords(term);
   const result = await search(term);
 
-  const stores = STORES.map((s): StoreMatch => {
+  const stores = activeStores().map((s): StoreMatch => {
     const status = result.stores.find((x) => x.store === s.id);
     // Stores list the most relevant first; past the top 20 it's mostly noise.
     const relevant = result.products
@@ -145,7 +145,7 @@ export interface BasketTotals {
 }
 
 export function basketTotals(matches: ItemMatch[]): { stores: BasketTotals[]; cheapestMix: { total: number; missing: string[] } } {
-  const stores = STORES.map((s) => {
+  const stores = activeStores().map((s) => {
     let total = 0;
     const missing: string[] = [];
     for (const m of matches) {

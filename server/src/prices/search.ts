@@ -2,7 +2,7 @@ import { options } from './config';
 import { db } from '../db';
 
 const now = () => new Date().toISOString();
-import { STORES, storeById } from './stores';
+import { activeStores, storeById } from './stores';
 import { ScrapedProduct, StoreAdapter } from './stores/types';
 import { parsePackSize, unitPrices } from './units';
 
@@ -47,12 +47,12 @@ function ageMs(iso: string | null): number {
   return iso ? Date.now() - new Date(iso).getTime() : Infinity;
 }
 
-function needsRefresh(row: SearchRow | undefined, force: boolean): boolean {
+function needsRefresh(row: SearchRow | undefined, force: boolean, cacheHours: number): boolean {
   if (row && ageMs(row.error_at) < backoffFor(row.error) && ageMs(row.error_at) < ageMs(row.fetched_at) && !force) {
     return false;
   }
   if (force) return true;
-  return ageMs(row?.fetched_at ?? null) >= options.cache_hours * 3600 * 1000;
+  return ageMs(row?.fetched_at ?? null) >= cacheHours * 3600 * 1000;
 }
 
 const upsertProduct = db.prepare(`
@@ -191,16 +191,54 @@ export function toResult(row: any): ProductResult {
   };
 }
 
+const stemWord = (w: string) =>
+  w.length > 3 && w.endsWith('ies') ? w.slice(0, -3) : w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w;
+
+/**
+ * A catalog store's answer: every product it has shown us in the last
+ * keepDays whose name holds all the search words — "eggs" finds eggs from
+ * whichever broad searches brought them in. Costs nothing.
+ */
+export function catalogMatches(store: StoreAdapter, term: string): ProductResult[] {
+  const words = termKey(term)
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 2)
+    .map(stemWord);
+  if (!words.length) return [];
+  const since = new Date(Date.now() - (store.keepDays?.() ?? 14) * 86400000).toISOString();
+  const rows = db.prepare('SELECT * FROM price_products WHERE store = ? AND updated_at >= ?').all(store.id, since) as any[];
+  return (
+    rows
+      .filter((r) => {
+        const hay = `${r.brand ?? ''} ${r.name}`.toLowerCase();
+        return words.every((w) => hay.includes(w));
+      })
+      // Shorter names first: "Large Eggs 18" before "Egg Noodles With Chicken Flavour".
+      .sort((a, b) => a.name.length - b.name.length)
+      .map((r, rank) => toResult({ ...r, rank }))
+  );
+}
+
+/** Fetch one term from one store now (the Checkers daily job uses this); returns the error, if any. */
+export async function fetchTerm(store: StoreAdapter, term: string): Promise<string | null> {
+  await refresh(store, term);
+  const row = db
+    .prepare('SELECT * FROM price_searches WHERE store = ? AND term_key = ?')
+    .get(store.id, termKey(term)) as SearchRow | undefined;
+  return row?.error && ageMs(row.error_at) < ageMs(row.fetched_at) ? row.error : null;
+}
+
 /** cacheOnly: answer from what's stored, never ask a store (used by recipe costing). */
 export async function search(term: string, opts: { force?: boolean; stores?: string[]; cacheOnly?: boolean } = {}) {
   const key = termKey(term);
-  const stores = STORES.filter((s) => !opts.stores?.length || opts.stores.includes(s.id));
+  const stores = activeStores().filter((s) => !opts.stores?.length || opts.stores.includes(s.id));
   const getRow = db.prepare('SELECT * FROM price_searches WHERE store = ? AND term_key = ?');
 
   const refreshed = new Set<string>();
   await Promise.all(
     stores.map(async (s) => {
-      if (!opts.cacheOnly && !storePause(s.id) && needsRefresh(getRow.get(s.id, key) as SearchRow | undefined, !!opts.force)) {
+      if (s.mode === 'catalog') return; // never fetched on demand — see catalogMatches
+      if (!opts.cacheOnly && !storePause(s.id) && needsRefresh(getRow.get(s.id, key) as SearchRow | undefined, !!opts.force, options.cache_hours)) {
         await refresh(s, term);
         refreshed.add(s.id);
       }
@@ -213,9 +251,24 @@ export async function search(term: string, opts: { force?: boolean; stores?: str
        WHERE r.term_key = ? ORDER BY r.store, r.rank`
     )
     .all(key) as any[];
-  const products = rows.filter((r) => stores.some((s) => s.id === r.store)).map(toResult);
+  const products = [
+    ...rows.filter((r) => stores.some((s) => s.id === r.store && s.mode !== 'catalog')).map(toResult),
+    ...stores.filter((s) => s.mode === 'catalog').flatMap((s) => catalogMatches(s, term)),
+  ];
 
   const status: StoreStatus[] = stores.map((s) => {
+    if (s.mode === 'catalog') {
+      const newest = db.prepare('SELECT MAX(updated_at) AS t FROM price_products WHERE store = ?').get(s.id) as { t: string | null };
+      return {
+        store: s.id,
+        name: s.name,
+        fetchedAt: newest.t,
+        refreshed: false,
+        error: null,
+        count: products.filter((p) => p.store === s.id).length,
+        pausedUntil: null,
+      };
+    }
     const row = getRow.get(s.id, key) as SearchRow | undefined;
     const failedLast = !!row?.error && ageMs(row.error_at) < ageMs(row.fetched_at);
     return {
@@ -247,7 +300,8 @@ export function startWatchlistRefresher() {
     const terms = db.prepare('SELECT term FROM price_watchlist ORDER BY created_at').all() as { term: string }[];
     for (const { term } of terms) {
       try {
-        await search(term);
+        // Stores that cost credits (Checkers via Parse) only refresh when you search.
+        await search(term, { stores: activeStores().filter((s) => s.background !== false).map((s) => s.id) });
       } catch (err: any) {
         console.warn(`[watchlist] "${term}": ${err.message}`);
       }
