@@ -104,6 +104,7 @@ export interface ShoppingItem {
   unit: string | null;
   note: string | null;
   category_id: string | null;
+  item_id: string | null;
   sources: string | null;
   checked: boolean;
   checked_at: string | null;
@@ -171,6 +172,7 @@ export interface ItemAlias {
 
 export interface ItemDetail extends Item {
   aliases: ItemAlias[];
+  paid?: PaidPrice[];
 }
 
 export interface BarcodeResult {
@@ -278,4 +280,19 @@ export interface ItemMatch {
     alternatives: { product: Product; packs: number; cost: number }[];
     error: string | null;
   }[];
+}
+
+export interface PaidPrice {
+  store: string | null;
+  pack_price: number;
+  pack_label: string | null;
+  unit_price: number;
+  price_unit: 'item' | 'g' | 'ml';
+  seen_at: string;
+  source: string;
+}
+
+export interface PaidResult {
+  stores: { store: string; total: number; found: number; missing: string[] }[];
+  items: { name: string; item: string | null; prices: { store: string; packs: number; cost: number; pack_price: number; pack_label: string | null; seen_at: string }[] }[];
 }

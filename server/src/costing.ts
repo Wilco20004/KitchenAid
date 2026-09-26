@@ -61,7 +61,7 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `R${n < 1 ? n.toFixed(3) : n.toFixed(2)}`;
 
 /** The priced item that best matches an ingredient name, if any. */
-function pricedItemFor(name: string): ItemRow | undefined {
+export function pricedItemFor(name: string): ItemRow | undefined {
   const exact = findItem({ name });
   if (exact?.unit_price != null) return exact;
   const key = nameKey(name);

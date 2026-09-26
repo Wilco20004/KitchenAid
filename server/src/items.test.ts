@@ -107,3 +107,34 @@ test('price matching skips kitchenware unless it was asked for', async () => {
   assert.ok(!isKitchenware('Addis Food Container 2L', 'food container'));
   assert.ok(!isKitchenware('Black Pepper Grinder', 'pepper grinder'));
 });
+
+test('prices paid per shop: tidy shop names, latest per shop, whole packs for a list', async () => {
+  const { items } = await load();
+  const { paidPricesFor } = await import('./paid');
+  assert.equal(items.storeName('SHOPRITE CHECKERS HYPER MENLYN'), 'Checkers');
+  assert.equal(items.storeName('KWIKSPAR MAIN ROAD'), 'SPAR');
+  assert.equal(items.storeName('Pick n Pay Family'), 'Pick n Pay');
+
+  const rice = items.ensureItem('Rice');
+  items.setPackPrice(rice.id, 60, 'TASTIC RICE 2KG', 'slip', '2026-08-01', { store: 'Checkers', historyOnly: true });
+  items.setPackPrice(rice.id, 55, 'TASTIC RICE 2KG', 'slip', '2026-09-01', { store: 'Checkers', historyOnly: true });
+  items.setPackPrice(rice.id, 70, 'SPAR RICE 2KG', 'slip', '2026-09-10', { store: 'SPAR', historyOnly: true });
+  // An older slip arriving late doesn't overwrite the newer "last price".
+  items.setPackPrice(rice.id, 40, 'RICE 2KG', 'slip', '2026-01-01', { store: 'Boxer', historyOnly: true });
+  assert.equal(items.getItem(rice.id)!.pack_price, 70);
+
+  const latest = items.latestPricesByStore(rice.id);
+  assert.deepEqual(latest.map((p) => [p.store, p.pack_price]), [['SPAR', 70], ['Checkers', 55], ['Boxer', 40]]);
+
+  const r = paidPricesFor([{ item_id: rice.id, name: 'Rice', quantity: 3, unit: 'kg' }]);
+  const checkers = r.items[0].prices.find((p) => p.store === 'Checkers')!;
+  assert.deepEqual([checkers.packs, checkers.cost], [2, 110]);
+  assert.equal(r.stores[0].store, 'Boxer'); // cheapest when coverage is equal
+});
+
+test('a plain count of something sold by weight means that many packs', async () => {
+  const { packsFor } = await import('./paid');
+  const soup = { store: 'SPAR', pack_price: 12.99, pack_label: 'KNORR BRN ONION SOUP 50G', unit_price: 0.2598, price_unit: 'g' as const, seen_at: '2026-09-01', source: 'slip' };
+  assert.deepEqual(packsFor(soup, { name: 'onion soup', quantity: 2, unit: null }), { packs: 2, cost: 25.98 });
+  assert.deepEqual(packsFor(soup, { name: 'onion soup', quantity: 120, unit: 'g' }), { packs: 3, cost: 38.97 });
+});

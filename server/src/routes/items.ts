@@ -9,6 +9,7 @@ import {
   findItem,
   getItem,
   itemDetail,
+  latestPricesByStore,
   listItems,
   mergeItems,
   removeAlias,
@@ -36,7 +37,7 @@ itemsRouter.get('/items', (req, res) => {
 itemsRouter.get('/items/:id', (req, res) => {
   const item = itemDetail(req.params.id);
   if (!item) return res.status(404).json({ error: 'Item not found' });
-  res.json(item);
+  res.json({ ...item, paid: latestPricesByStore(item.id) });
 });
 
 itemsRouter.post('/items', (req, res) => {

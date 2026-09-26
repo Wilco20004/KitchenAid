@@ -3,6 +3,7 @@ import { db } from '../db';
 import { recentTerms, search, termKey, toResult } from '../prices/search';
 import { STORES } from '../prices/stores';
 import { matchItem } from '../prices/basket';
+import { paidPricesFor } from '../paid';
 
 // Price comparison across Pick n Pay, Makro and Woolworths (what used to be
 // the separate PriceScout add-on).
@@ -41,6 +42,12 @@ pricesRouter.post('/match', async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// POST /api/prices/paid { items: [{ item_id?, name, quantity, unit }] } — from your own slips, per shop
+pricesRouter.post('/paid', (req, res) => {
+  const items = Array.isArray(req.body?.items) ? req.body.items.filter((i: any) => typeof i?.name === 'string') : [];
+  res.json(paidPricesFor(items));
 });
 
 pricesRouter.get('/products/:id', (req, res) => {

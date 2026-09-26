@@ -245,22 +245,85 @@ export function removeFromPantry(itemId: string) {
  * Record what a pack cost and work out the unit price from its size:
  * "EGGS 18S" at R72 → R4 per item; "BEEF MINCE 1.2KG" at R150 → R0.125 per g.
  */
-export function setPackPrice(itemId: string, packPrice: number, packLabel: string, source: string, at?: string) {
+export function unitPriceOf(packPrice: number, packLabel: string): { unitPrice: number; priceUnit: 'item' | 'g' | 'ml' } {
   const size = parsePackSize(packLabel);
-  let unitPrice: number;
-  let priceUnit: 'item' | 'g' | 'ml';
-  if (size.unit === 'g' || size.unit === 'ml') {
+  if ((size.unit === 'g' || size.unit === 'ml') && (size.perKg || size.each)) {
     const total = size.perKg ? 1000 : size.count * (size.each ?? 0);
-    unitPrice = packPrice / total;
-    priceUnit = size.unit;
-  } else {
-    unitPrice = packPrice / Math.max(1, size.count);
-    priceUnit = 'item';
+    return { unitPrice: packPrice / total, priceUnit: size.unit };
   }
+  return { unitPrice: packPrice / Math.max(1, size.count), priceUnit: 'item' };
+}
+
+/** "SHOPRITE CHECKERS HYPER MENLYN" → "Checkers"; unknown shops keep their own name. */
+export function storeName(merchant: string | null | undefined): string | null {
+  const m = (merchant ?? '').trim();
+  if (!m) return null;
+  const known: [RegExp, string][] = [
+    [/checkers/i, 'Checkers'],
+    [/shoprite/i, 'Shoprite'],
+    [/\bspar\b|superspar|kwikspar/i, 'SPAR'],
+    [/pick ?n ?pay|\bpnp\b/i, 'Pick n Pay'],
+    [/woolworths|\bww\b/i, 'Woolworths'],
+    [/makro/i, 'Makro'],
+    [/food lover/i, "Food Lover's Market"],
+    [/boxer/i, 'Boxer'],
+    [/usave/i, 'Usave'],
+    [/dis-?chem/i, 'Dis-Chem'],
+    [/clicks/i, 'Clicks'],
+  ];
+  return known.find(([re]) => re.test(m))?.[1] ?? m.replace(/\s+/g, ' ');
+}
+
+/**
+ * Record what a pack cost and work out the unit price from its size:
+ * "EGGS 18S" at R72 → R4 per item; "BEEF MINCE 1.2KG" at R150 → R0.125 per g.
+ * The item keeps its newest price (recipe costing uses it); every price is
+ * also kept per shop in item_prices.
+ */
+export function setPackPrice(
+  itemId: string,
+  packPrice: number,
+  packLabel: string,
+  source: string,
+  at?: string,
+  opts: { store?: string | null; receiptId?: string | null; historyOnly?: boolean } = {}
+) {
+  const { unitPrice, priceUnit } = unitPriceOf(packPrice, packLabel);
+  const seenAt = at ?? now().slice(0, 10);
   db.prepare(
-    'UPDATE items SET pack_price = ?, pack_label = ?, unit_price = ?, price_unit = ?, price_source = ?, price_at = ?, updated_at = ? WHERE id = ?'
-  ).run(packPrice, packLabel, unitPrice, priceUnit, source, at ?? now().slice(0, 10), now(), itemId);
+    `INSERT INTO item_prices (id, item_id, store, pack_price, pack_label, unit_price, price_unit, source, seen_at, receipt_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(uuid(), itemId, opts.store ?? null, packPrice, packLabel, unitPrice, priceUnit, source, seenAt, opts.receiptId ?? null);
+  const item = getItem(itemId)!;
+  if (!opts.historyOnly || !item.price_at || seenAt >= item.price_at) {
+    db.prepare(
+      'UPDATE items SET pack_price = ?, pack_label = ?, unit_price = ?, price_unit = ?, price_source = ?, price_at = ?, updated_at = ? WHERE id = ?'
+    ).run(packPrice, packLabel, unitPrice, priceUnit, source, seenAt, now(), itemId);
+  }
   return getItem(itemId)!;
+}
+
+export interface PaidPrice {
+  store: string | null;
+  pack_price: number;
+  pack_label: string | null;
+  unit_price: number;
+  price_unit: 'item' | 'g' | 'ml';
+  seen_at: string;
+  source: string;
+}
+
+/** The latest price paid at each shop for an item, newest first. */
+export function latestPricesByStore(itemId: string): PaidPrice[] {
+  return db
+    .prepare(
+      `SELECT p.store, p.pack_price, p.pack_label, p.unit_price, p.price_unit, p.seen_at, p.source FROM item_prices p
+       WHERE p.item_id = ? AND p.rowid = (
+         SELECT q.rowid FROM item_prices q WHERE q.item_id = p.item_id AND COALESCE(q.store, '') = COALESCE(p.store, '')
+         ORDER BY q.seen_at DESC, q.rowid DESC LIMIT 1)
+       ORDER BY p.seen_at DESC`
+    )
+    .all(itemId) as PaidPrice[];
 }
 
 // ---------- slip lines ----------

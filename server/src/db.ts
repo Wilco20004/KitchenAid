@@ -167,6 +167,24 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_item_aliases_item ON item_aliases(item_id);
 
+  -- Every price actually paid, per shop — mostly from BudgetPro slips. This
+  -- is how Checkers and SPAR get compared: neither publishes prices a
+  -- program may read, but your slips from them say exactly what things cost.
+  -- store is the tidied merchant name ("Checkers", "SPAR", "Pick n Pay").
+  CREATE TABLE IF NOT EXISTS item_prices (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    store TEXT,
+    pack_price REAL NOT NULL,
+    pack_label TEXT,
+    unit_price REAL NOT NULL,
+    price_unit TEXT NOT NULL,
+    source TEXT NOT NULL,
+    seen_at TEXT NOT NULL,
+    receipt_id TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_item_prices_item ON item_prices(item_id, store, seen_at);
+
   -- Things you always have (salt, oil, water): unticked by default when a
   -- recipe's ingredients go to the shopping list.
   CREATE TABLE IF NOT EXISTS staples (

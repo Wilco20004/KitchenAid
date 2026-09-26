@@ -1,5 +1,5 @@
 import { db } from './db';
-import { addToPantry, itemForSlipLine, setPackPrice, slipKey, wordsWithin } from './items';
+import { addToPantry, itemForSlipLine, setPackPrice, slipKey, storeName, wordsWithin } from './items';
 import { getBudgetProOptions, getSetting, setSetting } from './settings';
 
 // Pulls grocery slips from the BudgetPro add-on (its REST API, with the API
@@ -11,12 +11,15 @@ const SYNC_EVERY_MS = 30 * 60 * 1000;
 // First sync only looks back this far, so connecting doesn't pour months of
 // old slips into the pantry.
 const FIRST_SYNC_DAYS = 7;
+// Prices (not pantry) are learnt from slips this far back.
+const HISTORY_DAYS = 180;
 
 export interface SyncResult {
   receipts: number;
   items: number;
   ticked: number;
   skipped: number;
+  history_receipts: number;
   lastSync: string;
 }
 
@@ -98,35 +101,52 @@ async function doSync(): Promise<SyncResult> {
     getSetting('budgetpro_since') ?? new Date(Date.now() - FIRST_SYNC_DAYS * 86400000).toISOString().slice(0, 10);
   if (!getSetting('budgetpro_since')) setSetting('budgetpro_since', since);
 
+  // Older slips (up to HISTORY_DAYS) still teach prices — what things cost
+  // at Checkers or SPAR — without pouring old shopping into the pantry.
+  const historySince = new Date(Date.now() - HISTORY_DAYS * 86400000).toISOString().slice(0, 10);
+  const dateOf = (r: BpReceiptSummary) => r.receipt_date ?? r.created_at.slice(0, 10);
   const receipts = (await bpGet<BpReceiptSummary[]>('receipts')).filter(
-    (r) => r.status === 'parsed' && r.item_count > 0 && (r.receipt_date ?? r.created_at.slice(0, 10)) >= since
+    (r) => r.status === 'parsed' && r.item_count > 0 && dateOf(r) >= historySince
   );
+  const seen = (ext: string) => Boolean(db.prepare('SELECT 1 FROM imported WHERE external_id = ?').get(ext));
+  const mark = (ext: string, id: string) => db.prepare('INSERT OR REPLACE INTO imported (external_id, local_id) VALUES (?, ?)').run(ext, id);
 
-  const result: SyncResult = { receipts: 0, items: 0, ticked: 0, skipped: 0, lastSync: new Date().toISOString() };
+  const result: SyncResult = { receipts: 0, items: 0, ticked: 0, skipped: 0, history_receipts: 0, lastSync: new Date().toISOString() };
   for (const summary of receipts) {
+    // full = recent and not yet in the pantry; prices are learnt once per slip either way.
+    const recent = dateOf(summary) >= since;
+    const full = recent && !seen(`budgetpro:receipt:${summary.id}`);
     const ext = `budgetpro:receipt:${summary.id}`;
-    if (db.prepare('SELECT 1 FROM imported WHERE external_id = ?').get(ext)) {
+    const priceExt = `budgetpro:prices:${summary.id}`;
+    if (!full && seen(priceExt)) {
       result.skipped++;
       continue;
     }
-    const receipt = await bpGet<{ items: BpReceiptItem[]; receipt_date: string | null }>(`receipts/${summary.id}`);
+    const receipt = await bpGet<{ items: BpReceiptItem[]; receipt_date: string | null; merchant_name: string | null }>(`receipts/${summary.id}`);
     const bought = receipt.items.filter((i) => i.amount > 0 && ids.has(i.category_id ?? i.product_category_id ?? ''));
     const boughtAt = receipt.receipt_date ?? summary.created_at.slice(0, 10);
+    const store = storeName(receipt.merchant_name ?? summary.merchant_name);
 
     db.transaction(() => {
       for (const line of bought) {
         const item = itemForSlipLine(line.raw_name);
-        // What one pack cost (a line can be "2 x"), unless a newer price is
-        // already known — slips can arrive out of order.
+        // What one pack cost (a line can be "2 x"). The item's own "last
+        // price" only moves forward in time — slips can arrive out of order.
         const qty = line.quantity > 0 ? line.quantity : 1;
-        if (!item.price_at || boughtAt >= item.price_at) setPackPrice(item.id, line.amount / qty, line.raw_name, 'slip', boughtAt);
-        addToPantry({ itemId: item.id, source: 'budgetpro', bought_at: boughtAt });
-        result.items++;
-        result.ticked += tickOffShopping(item.id, `${slipKey(line.raw_name)} ${item.name_key}`);
+        if (!seen(priceExt)) {
+          setPackPrice(item.id, line.amount / qty, line.raw_name, 'slip', boughtAt, { store, receiptId: summary.id, historyOnly: true });
+        }
+        if (full) {
+          addToPantry({ itemId: item.id, source: 'budgetpro', bought_at: boughtAt });
+          result.items++;
+          result.ticked += tickOffShopping(item.id, `${slipKey(line.raw_name)} ${item.name_key}`);
+        }
       }
-      db.prepare('INSERT OR REPLACE INTO imported (external_id, local_id) VALUES (?, ?)').run(ext, summary.id);
+      mark(priceExt, summary.id);
+      if (full) mark(ext, summary.id);
     })();
-    result.receipts++;
+    if (full) result.receipts++;
+    else result.history_receipts++;
   }
   setSetting('budgetpro_last_sync', result.lastSync);
   setSetting('budgetpro_last_result', JSON.stringify(result));

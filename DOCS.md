@@ -118,6 +118,17 @@ mince → two 750 g packs), and shows each store's total and the cheapest mix
 of shops. Tap an item to see what was picked. The first check each day asks
 the stores about each item, so it takes a few seconds per item.
 
+## Checkers and SPAR: prices from your slips
+
+Checkers/Shoprite turn away automated requests (even a headless browser)
+and SPAR has no web shop — each SPAR sets its own prices in the SPAR2U app.
+KitchenAid doesn't try to get around that. Instead, every grocery line on
+your BudgetPro slips is remembered as a price **at that shop**, and **What
+will it cost?** opens with "What you paid last time": each shop's total for
+the list, and how many of its items your slips cover. The more you shop
+there, the better it gets. The item sheet shows the latest price per shop,
+and the AI can ask via the `prices_paid` tool.
+
 ## BudgetPro
 
 Set `budgetpro_url` (BudgetPro's own port, e.g. `http://10.1.1.3:8097`) and
@@ -140,7 +151,7 @@ Tools: `search_prices`, `price_history`, `price_shopping_list`,
 `list_price_watchlist`, `watch_price`, `set_product_size`,
 `search_recipes`, `get_recipe`, `recipe_cost`, `get_meal_plan`,
 `plan_meal`, `get_shopping_list`, `add_to_shopping_list`, `get_pantry`,
-`update_pantry`, `find_item`, `sync_budgetpro`.
+`update_pantry`, `find_item`, `prices_paid`, `sync_budgetpro`.
 
 Ask things like "Where's this week's shopping cheapest?", "What does the
 bobotie cost per serving?", or "What can I make with what's in the pantry?".

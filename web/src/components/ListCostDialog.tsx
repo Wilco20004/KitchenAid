@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import { ItemMatch, ShoppingItem } from '../types';
+import { ItemMatch, PaidResult, ShoppingItem } from '../types';
 import { formatAmount, rand } from '../utils/format';
 import Modal from './Modal';
 
@@ -15,6 +15,15 @@ export default function ListCostDialog({ items, onClose }: { items: ShoppingItem
   const [done, setDone] = useState(false);
   const [open, setOpen] = useState<number | null>(null);
   const cancelled = useRef(false);
+  const [paid, setPaid] = useState<PaidResult | null>(null);
+
+  // Your own slip prices are local and instant — Checkers and SPAR come from here.
+  useEffect(() => {
+    api
+      .paidPrices(items.map((i) => ({ item_id: i.item_id, name: i.name, quantity: i.quantity, unit: i.unit })))
+      .then(setPaid)
+      .catch(() => setPaid(null));
+  }, [items]);
 
   useEffect(() => {
     cancelled.current = false;
@@ -72,6 +81,24 @@ export default function ListCostDialog({ items, onClose }: { items: ShoppingItem
         </div>
       )}
 
+      {paid && paid.stores.length > 0 && (
+        <>
+          <h3>What you paid last time</h3>
+          <div className="best-grid">
+            {paid.stores.map((s) => (
+              <div key={s.store} className="best paid">
+                <span className="muted tiny">{s.store}</span>
+                <span className="best-price">{rand(s.total)}</span>
+                <span className="muted tiny">
+                  {s.found} of {items.length} items on your slips
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <h3>Online prices today</h3>
       {priced.length > 0 && (
         <div className="best-grid">
           {totals.map((t, idx) => (
@@ -140,6 +167,12 @@ export default function ListCostDialog({ items, onClose }: { items: ShoppingItem
                       ) : (
                         <span className="muted">{s.error ?? 'nothing matching found'}</span>
                       )}
+                    </div>
+                  ))}
+                  {paid?.items[idx]?.prices.map((p) => (
+                    <div key={p.store} className="small">
+                      <strong>{p.store}</strong> <span className="muted">(you paid, {p.seen_at}):</span> {p.packs > 1 ? `${p.packs} × ` : ''}
+                      {rand(p.pack_price)} {p.pack_label && <span className="muted">for {p.pack_label}</span>}
                     </div>
                   ))}
                   <Link to={`/prices?q=${encodeURIComponent(m.term)}`} className="link small">

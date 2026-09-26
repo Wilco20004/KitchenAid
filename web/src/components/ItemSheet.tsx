@@ -178,6 +178,21 @@ export default function ItemSheet({
         ) : (
           !pricing && <p className="muted small">No price yet — it's filled in from BudgetPro slips, or set it here. Recipe costs use it.</p>
         )}
+        {(item.paid?.filter((p) => p.store).length ?? 0) > 0 && (
+          <ul className="paid-list">
+            {item.paid!
+              .filter((p) => p.store)
+              .map((p) => (
+                <li key={p.store}>
+                  <strong>{p.store}</strong>
+                  <span>{unitPriceLabel(p.unit_price, p.price_unit)}</span>
+                  <span className="muted tiny">
+                    {rand(p.pack_price)} · {p.seen_at}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        )}
         {pricing && (
           <form className="price-form" onSubmit={savePrice}>
             <input inputMode="decimal" placeholder="Pack price, e.g. 72" value={packPrice} onChange={(e) => setPackPrice(e.target.value)} autoFocus />

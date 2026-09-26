@@ -5,6 +5,7 @@ import {
   Item,
   ItemDetail,
   ItemMatch,
+  PaidResult,
   Product,
   RecentTerm,
   RecipeCost,
@@ -159,6 +160,8 @@ export const api = {
   watchPrice: (item: { term: string; includeWords: string; excludeWords: string; basis: Basis }) =>
     request<WatchItem>('api/prices/watchlist', json('POST', item)),
   unwatchPrice: (termKey: string) => request<void>(`api/prices/watchlist/${encodeURIComponent(termKey)}`, { method: 'DELETE' }),
+  paidPrices: (items: { item_id?: string | null; name: string; quantity: number | null; unit: string | null }[]) =>
+    request<PaidResult>('api/prices/paid', json('POST', { items })),
   matchItem: (item: { name: string; quantity: number | null; unit: string | null }) =>
     request<ItemMatch>('api/prices/match', json('POST', item)),
 

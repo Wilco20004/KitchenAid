@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0 — 2026-09-26
+
+- **Prices you paid, per shop.** Every grocery line on a BudgetPro slip is
+  kept as a price at that shop, so Checkers and SPAR — which publish no
+  prices a program may read — can be compared from your own slips.
+- The BudgetPro sync reads up to 6 months of older slips for prices only
+  (they don't go into the pantry); slips synced before this version get
+  their prices picked up too.
+- **What will it cost?** now starts with "What you paid last time": each
+  shop's total for the list from your slip prices (whole packs, enough for
+  the amount), next to today's online prices.
+- Item sheet lists the latest price paid at each shop.
+- New MCP tool `prices_paid`; `find_item` includes prices per shop.
+- A list item with no price history of its own uses the priced item its
+  words point at ("milk" → "Clover Full Cream Milk" from the slips).
+
 ## 0.2.1 — 2026-09-26
 
 - Moved to port 8099 (web UI, Ingress and the MCP endpoint). AI assistants

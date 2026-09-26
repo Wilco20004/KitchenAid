@@ -8,8 +8,9 @@ import { loadRecipe } from './recipes';
 import { listRecipes } from './routes/recipes';
 import { nameKey, parseIngredient } from './ingredients';
 import { addItem, ShoppingItemRow } from './shopping';
-import { addToPantry, findItem, itemDetail, listItems, removeFromPantry } from './items';
-import { recipeCost } from './costing';
+import { addToPantry, findItem, itemDetail, latestPricesByStore, listItems, removeFromPantry } from './items';
+import { pricedItemFor, recipeCost } from './costing';
+import { NeedLine, paidPricesFor } from './paid';
 import { budgetProStatus, syncBudgetPro } from './budgetpro';
 import { search, toResult, ProductResult } from './prices/search';
 import { applyFilters, basisValue, Basis, sortByBasis, suspectIds } from './prices/compare';
@@ -87,7 +88,7 @@ function buildServer(): McpServer {
         'KitchenAid is a household kitchen app in South Africa (prices in rand, ZAR). It has recipes, a weekly meal plan ' +
         '(Monday–Sunday, slots breakfast/lunch/dinner/snack), shopping lists grouped by aisle, a pantry of what is at home ' +
         '(filled automatically from grocery slips logged in BudgetPro), and live grocery prices from Pick n Pay, Makro and ' +
-        'Woolworths. Each store is asked about a search term at most once a day; results are cached, so repeat questions are ' +
+        'Woolworths, plus prices you actually paid per shop (incl. Checkers and SPAR) from BudgetPro slips — see prices_paid. Each store is asked about a search term at most once a day; results are cached, so repeat questions are ' +
         'instant, but a first search takes a few seconds per store and a whole shopping list can take a minute. Store search is ' +
         'fuzzy: check that a product really is the thing asked for (e.g. "tomato" can return tomato sauce) and say which ' +
         'product and pack size a price is for. Unit prices (per kg / litre) are the fair comparison; watch for implausible ' +
@@ -195,6 +196,30 @@ function buildServer(): McpServer {
         })),
         not_priced: items.length > chosen.length ? items.slice(chosen.length).map((i) => i.name) : undefined,
       });
+    }
+  );
+
+  server.registerTool(
+    'prices_paid',
+    {
+      title: 'What you paid, per shop',
+      description:
+        'Prices from your own BudgetPro slips, per shop — including Checkers and SPAR, which have no online prices to search. ' +
+        'Give an item name for its latest price at each shop, or list=true to total the open shopping list per shop from your ' +
+        'last-paid prices (whole packs, enough for the amount needed).',
+      inputSchema: { item: z.string().optional(), list: z.string().optional().describe('Shopping list name, or "default"') },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ item, list }) => {
+      if (item) {
+        const hit = findItem({ name: item }) ?? pricedItemFor(item);
+        if (!hit) return json({ found: false });
+        return json({ item: hit.name, latest_per_shop: latestPricesByStore(hit.id) });
+      }
+      const rows = db
+        .prepare('SELECT item_id, name, quantity, unit FROM shopping_items WHERE list_id = ? AND checked = 0')
+        .all(defaultListId(list && list !== 'default' ? list : undefined)) as NeedLine[];
+      return json(paidPricesFor(rows));
     }
   );
 
@@ -424,7 +449,7 @@ function buildServer(): McpServer {
     },
     async ({ name, barcode }) => {
       const hit = findItem({ name, barcode });
-      if (hit) return json(itemDetail(hit.id));
+      if (hit) return json({ ...itemDetail(hit.id), paid_per_shop: latestPricesByStore(hit.id) });
       return json({ found: false, similar: name ? listItems({ q: name }).slice(0, 10).map((i) => i.name) : [] });
     }
   );
