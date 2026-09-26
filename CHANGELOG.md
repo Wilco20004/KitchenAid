@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2 — 2026-09-26
+
+- Recipe costs no longer borrow a price across product forms in either
+  direction: "tomato paste" isn't costed at the price of fresh tomatoes,
+  nor "chicken stock" at the price of chicken.
+
 ## 0.5.1 — 2026-09-26
 
 - Pet food whose name never says "dog" (Boss, Husky, Bobtail, Pedigree,

@@ -3,7 +3,7 @@ import { nameKey, toBase } from './ingredients';
 import { findItem, ItemRow, wordsWithin } from './items';
 import { search } from './prices/search';
 import { isKitchenware, searchTerm } from './prices/basket';
-import { differentProduct } from './productForms';
+import { sameProductForm } from './productForms';
 
 // What a recipe costs to make, from what you actually paid: each ingredient
 // is matched to an item in the catalogue and its amount multiplied by that
@@ -64,12 +64,12 @@ const money = (n: number) => `R${n < 1 ? n.toFixed(3) : n.toFixed(2)}`;
 /** The priced item that best matches an ingredient name, if any. */
 export function pricedItemFor(name: string): ItemRow | undefined {
   const exact = findItem({ name });
-  if (exact?.unit_price != null && !differentProduct(name, exact.pack_label ?? '')) return exact;
+  if (exact?.unit_price != null && sameProductForm(name, exact.pack_label ?? '')) return exact;
   const key = nameKey(name);
   const candidates = db.prepare('SELECT * FROM items WHERE unit_price IS NOT NULL').all() as ItemRow[];
   // "white sugar" ↔ "sugar" either way round; the closest word count wins.
   return candidates
-    .filter((i) => (wordsWithin(key, i.name_key) || wordsWithin(i.name_key, key)) && !differentProduct(key, i.pack_label ?? i.name))
+    .filter((i) => (wordsWithin(key, i.name_key) || wordsWithin(i.name_key, key)) && sameProductForm(key, i.pack_label ?? i.name))
     .sort((a, b) => Math.abs(a.name_key.split(' ').length - key.split(' ').length) - Math.abs(b.name_key.split(' ').length - key.split(' ').length))[0];
 }
 

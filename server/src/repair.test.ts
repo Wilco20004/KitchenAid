@@ -16,6 +16,9 @@ test('product forms: chips, energy bars, dog food and baby food are different th
   assert.equal(differentProduct('sweet potato', 'Purity Jar Sweet Potato 125ml from 6 Months'), true);
   assert.equal(differentProduct('garlic', "Pot O' Gold Tomato Paste With Garlic 50g"), true);
   assert.equal(differentProduct('tomato paste', 'Blue Crane Tomato Paste 50g'), false);
+  const { sameProductForm } = await import('./productForms');
+  assert.equal(sameProductForm('tomato paste', 'Tomatoes 1kg'), false);
+  assert.equal(sameProductForm('milk', 'Dewfresh Full Cream Fresh Milk 1L'), true);
   assert.equal(differentProduct('milk', 'Dewfresh Full Cream Fresh Milk 1L'), false);
   assert.equal(differentProduct('egg', 'Farmhouse Eggs Extra Large Eggs Tray 30 Pack'), false);
   assert.equal(differentProduct('beef stock cubes', 'Knorr Beef Stock Cubes 24s'), false);

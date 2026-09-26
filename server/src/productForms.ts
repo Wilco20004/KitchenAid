@@ -36,3 +36,8 @@ export function differentProduct(item: string, product: string): boolean {
   const mine = new Set(tokens(item));
   return tokens(product).some((w) => FORMS.has(w) && !mine.has(w) && !mine.has(w.replace(/s$/, '')) && !mine.has(`${w}s`));
 }
+
+/** Neither side is a different product form of the other: "tomato paste" ≠ "Tomatoes 1kg" either way round. */
+export function sameProductForm(a: string, b: string): boolean {
+  return !differentProduct(a, b) && !differentProduct(b, a);
+}
