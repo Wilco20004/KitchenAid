@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0 — 2026-09-26
+
+- **I cooked this** on a recipe (and **Cooked it** on a meal plan entry):
+  shows what the recipe took from the pantry, scaled to the servings made —
+  "Beef Mince: 1 kg at home, 500 g left", "Tomato Paste: finishes it" — to
+  check and adjust, then takes it out. What reaches nothing leaves the
+  pantry; things at home without an amount only go when ticked. Staples and
+  things not at home are left alone, and "coconut milk" never comes out of
+  the Milk.
+- **Used some?** on a pantry item takes off an amount ("2", "250 g")
+  without a recipe.
+- AI assistants: new `cooked_recipe` tool, and `update_pantry` takes
+  `used: ["2 hake medallions"]`.
+
 ## 0.6.1 — 2026-09-26
 
 - Recipe costs find items priced from a bare slip label again: tomato paste

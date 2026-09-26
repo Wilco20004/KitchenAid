@@ -6,6 +6,7 @@ import { addDays, dayLabel, rangeLabel, today, weekStart } from '../utils/dates'
 import { placeholderStyle } from '../utils/format';
 import Icon from '../components/Icon';
 import Modal from '../components/Modal';
+import CookDialog from '../components/CookDialog';
 import AddToPlanDialog, { SLOTS } from '../components/AddToPlanDialog';
 import AddToListDialog from '../components/AddToListDialog';
 
@@ -146,6 +147,7 @@ function EntryDialog({ entry, onClose, onChanged }: { entry: MealPlanEntry; onCl
   const [date, setDate] = useState(entry.date);
   const [slot, setSlot] = useState<Slot>(entry.slot);
   const [servings, setServings] = useState<number | ''>(entry.servings ?? '');
+  const [cooking, setCooking] = useState(false);
   const [title, setTitle] = useState(entry.title);
   const [note, setNote] = useState(entry.note ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -190,12 +192,16 @@ function EntryDialog({ entry, onClose, onChanged }: { entry: MealPlanEntry; onCl
     >
       {error && <p className="error">{error}</p>}
       {entry.recipe_id && (
-        <p>
+        <p className="button-row">
           <Link to={`/recipes/${entry.recipe_id}`} className="button secondary small">
             Open recipe
           </Link>
+          <button type="button" className="button secondary small" onClick={() => setCooking(true)}>
+            <Icon name="check" /> Cooked it
+          </button>
         </p>
       )}
+      {cooking && entry.recipe_id && <CookDialog recipeId={entry.recipe_id} servings={entry.servings} onClose={() => setCooking(false)} />}
       {!entry.recipe_id && (
         <label className="field">
           <span className="label">Note</span>

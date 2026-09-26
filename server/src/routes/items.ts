@@ -21,6 +21,7 @@ import {
   setPackPrice,
 } from '../items';
 import { budgetProStatus, syncBudgetPro } from '../budgetpro';
+import { parseAmount, useFromPantry } from '../cooking';
 import { setSetting } from '../settings';
 
 // The item catalogue, the pantry (items flagged in_pantry), barcodes and the
@@ -118,6 +119,18 @@ itemsRouter.post('/items/:id/pantry', (req, res) => {
     res.json(
       addToPantry({ itemId: req.params.id, quantity: req.body?.quantity ?? null, unit: req.body?.unit ?? null, note: req.body?.note ?? null, expires_at: expires })
     );
+  } catch (e) {
+    fail(res, e, 404);
+  }
+});
+
+// POST /api/items/:id/use { amount: "2" | "250 g" } or { used_up: true } — used some
+itemsRouter.post('/items/:id/use', (req, res) => {
+  const amount = typeof req.body?.amount === 'string' && req.body.amount.trim() ? parseAmount(req.body.amount) : null;
+  if (!amount && !req.body?.used_up) return res.status(400).json({ error: 'Say how much was used, e.g. 2 or 250 g' });
+  try {
+    const result = useFromPantry(req.params.id, { amount, usedUp: Boolean(req.body?.used_up) });
+    res.json({ result, item: itemDetail(req.params.id) });
   } catch (e) {
     fail(res, e, 404);
   }

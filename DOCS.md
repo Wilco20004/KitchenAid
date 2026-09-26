@@ -80,6 +80,18 @@ something already at home keeps the earlier date, since the older packet
 goes off first. Anything expired or due within a week sits in **Use soon**
 at the top of the pantry.
 
+**Using things up.** After cooking, tap **I cooked this** on the recipe (or
+**Cooked it** on the meal plan entry). It lists every ingredient that's in
+the pantry with what will be left — 1 kg mince minus 500 g leaves 500 g, a
+50 g sachet of paste is finished — scaled to the servings you made. Change
+any amount, untick what you didn't use, and confirm. Anything that reaches
+nothing leaves the pantry. Things at home with no amount recorded start
+unticked; tick them if they're finished. For a snack or a lunch without a
+recipe, open the item and use **Used some?** ("2", "250 g"). Amounts come
+off when the units fit (g and kg, ml and L, counts); cups of something kept
+by weight are converted roughly. Ticking ingredients while cooking is just a
+checklist and doesn't change the pantry.
+
 For a Home Assistant sensor or notification, `GET /api/pantry/expiring?days=3`
 (through Ingress, or on the add-on's port on your network) returns
 `{ count, expired, items: [{ name, use_by, days_left }] }`.
@@ -183,11 +195,12 @@ Tools: `search_prices`, `price_history`, `price_shopping_list`,
 `list_price_watchlist`, `watch_price`, `set_product_size`,
 `search_recipes`, `get_recipe`, `recipe_cost`, `get_meal_plan`,
 `plan_meal`, `get_shopping_list`, `add_to_shopping_list`, `get_pantry`,
-`update_pantry`, `find_item`, `prices_paid`, `sync_budgetpro`.
+`update_pantry`, `cooked_recipe`, `find_item`, `prices_paid`, `sync_budgetpro`.
 
 Ask things like "Where's this week's shopping cheapest?", "What does the
 bobotie cost per serving?", "What can I make with what's in the pantry?", or
-"What should we cook this week to use up what's expiring?". `get_pantry`
+"What should we cook this week to use up what's expiring?", or "We made the
+vetkoek tonight" (`cooked_recipe` takes it out of the pantry). `get_pantry`
 includes use-by dates and `update_pantry` can set them.
 
 ## Pantry staples

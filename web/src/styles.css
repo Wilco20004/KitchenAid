@@ -2237,3 +2237,41 @@ table.mini tr.winner td {
   flex: 1;
   min-width: 0;
 }
+
+/* ---------- cooking: taking things out of the pantry ---------- */
+
+.cook-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.cook-list li label {
+  flex: 1;
+  min-width: 0;
+  border-bottom: none;
+}
+
+.cook-list input.cook-amount {
+  width: 6.5rem;
+  flex: 0 0 6.5rem;
+}
+
+.use-results {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.use-some {
+  margin: -0.4rem 0 0.9rem;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

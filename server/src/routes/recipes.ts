@@ -9,6 +9,7 @@ import { previewIngredients } from '../shopping';
 import { nameKey } from '../ingredients';
 import { pantryCovers, pantryKeys } from '../items';
 import { recipeCost } from '../costing';
+import { applyUse, cookPlan } from '../cooking';
 
 export const recipesRouter = Router();
 
@@ -135,6 +136,26 @@ recipesRouter.get('/:id/cost', async (req, res) => {
     res.json(await recipeCost(req.params.id, Number(req.query.servings) || null, { storeFallback: req.query.store === '1' }));
   } catch (e: any) {
     res.status(404).json({ error: e.message });
+  }
+});
+
+// GET /api/recipes/:id/cook?servings=4 — what cooking it would take from the pantry
+recipesRouter.get('/:id/cook', (req, res) => {
+  try {
+    res.json(cookPlan(req.params.id, Number(req.query.servings) || null));
+  } catch (e: any) {
+    res.status(404).json({ error: e.message });
+  }
+});
+
+// POST /api/recipes/:id/cook { lines: [{ item_id, amount: "500 g" | null, used_up }] } — the reviewed plan
+recipesRouter.post('/:id/cook', (req, res) => {
+  const lines = Array.isArray(req.body?.lines) ? req.body.lines : null;
+  if (!lines) return res.status(400).json({ error: 'lines are required' });
+  try {
+    res.json({ results: applyUse(lines.filter((l: any) => typeof l?.item_id === 'string')) });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
   }
 });
 

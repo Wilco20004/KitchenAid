@@ -23,6 +23,8 @@ import {
   ShoppingList,
   Slot,
   Staple,
+  CookPlan,
+  UseResult,
 } from '../types';
 
 // Every path is relative (no leading slash) so it resolves under Home
@@ -82,6 +84,9 @@ export const api = {
     return request<Recipe>(`api/recipes/${id}/photo`, { method: 'POST', body: form });
   },
   deleteRecipePhoto: (id: string) => request<Recipe>(`api/recipes/${id}/photo`, { method: 'DELETE' }),
+  cookPlan: (id: string, servings: number | null) => request<CookPlan>(`api/recipes/${id}/cook${servings ? `?servings=${servings}` : ''}`),
+  cooked: (id: string, lines: { item_id: string; amount?: string | null; used_up?: boolean }[]) =>
+    request<{ results: UseResult[] }>(`api/recipes/${id}/cook`, json('POST', { lines })),
   recipeShoppingPreview: (id: string, servings: number | null) =>
     request<PreviewLine[]>(`api/recipes/${id}/shopping-preview`, json('POST', { servings })),
   listTags: () => request<{ name: string; count: number }[]>('api/tags'),
@@ -139,6 +144,8 @@ export const api = {
     request<Item>(`api/items/${id}/pantry`, json('POST', data)),
   setExpiry: (id: string, data: { expires_at?: string | null; keeps_days?: number | null }) =>
     request<ItemDetail>(`api/items/${id}/expiry`, json('PUT', data)),
+  useSome: (id: string, data: { amount?: string; used_up?: boolean }) =>
+    request<{ result: UseResult; item: ItemDetail }>(`api/items/${id}/use`, json('POST', data)),
   usedUp: (id: string) => request<ItemDetail>(`api/items/${id}/pantry`, { method: 'DELETE' }),
   setItemPrice: (id: string, pack_price: number, pack_label: string) =>
     request<ItemDetail>(`api/items/${id}/price`, json('PUT', { pack_price, pack_label })),

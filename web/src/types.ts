@@ -121,6 +121,31 @@ export interface Staple {
   name: string;
 }
 
+export interface CookPlanLine {
+  ingredient: string;
+  item_id: string;
+  item: string;
+  have: string | null;
+  use_text: string;
+  left_text: string | null;
+  action: 'subtract' | 'use_up' | 'unknown';
+  approx: boolean;
+}
+
+export interface CookPlan {
+  recipe: string;
+  servings: number | null;
+  lines: CookPlanLine[];
+  not_at_home: string[];
+}
+
+export interface UseResult {
+  item: string;
+  left: string | null;
+  removed: boolean;
+  skipped?: string;
+}
+
 export interface PreviewLine {
   key: string;
   name: string;

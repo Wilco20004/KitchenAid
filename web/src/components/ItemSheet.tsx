@@ -57,6 +57,8 @@ export default function ItemSheet({
   const [scanning, setScanning] = useState(false);
   const [merging, setMerging] = useState(false);
   const [keeps, setKeeps] = useState('');
+  const [useAmount, setUseAmount] = useState('');
+  const [useMsg, setUseMsg] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -118,6 +120,17 @@ export default function ItemSheet({
 
   const expiry = item.in_pantry && item.expires_at ? expiryLabel(item.expires_at) : null;
 
+  function useSome(e: FormEvent) {
+    e.preventDefault();
+    if (!useAmount.trim()) return;
+    setUseMsg(null);
+    run(async () => {
+      const r = await api.useSome(item!.id, { amount: useAmount.trim() });
+      setUseAmount('');
+      setUseMsg(r.result.skipped ? `Unchanged — ${r.result.skipped}` : r.result.removed ? 'All used — out of the pantry' : `${r.result.left} left`);
+    });
+  }
+
   function savePrice(e: FormEvent) {
     e.preventDefault();
     const p = Number(packPrice.replace(',', '.'));
@@ -167,6 +180,22 @@ export default function ItemSheet({
           <span className="muted">Not at home</span>
         )}
       </div>
+
+      {item.in_pantry ? (
+        <form className="inline-form use-some" onSubmit={useSome}>
+          <input
+            value={useAmount}
+            onChange={(e) => setUseAmount(e.target.value)}
+            placeholder={item.pantry_quantity !== null ? `Used some? e.g. ${item.pantry_unit ? `250 ${item.pantry_unit === 'kg' ? 'g' : item.pantry_unit}` : '2'}` : 'No amount recorded — use Used up'}
+            disabled={item.pantry_quantity === null}
+            aria-label="Amount used"
+          />
+          <button type="submit" className="button secondary small" disabled={!useAmount.trim()}>
+            Take off
+          </button>
+        </form>
+      ) : null}
+      {useMsg && <p className="notice small">{useMsg}</p>}
 
       <div className="field-grid two">
         <label className="field">

@@ -6,6 +6,7 @@ import { bySection, formatMinutes, scaledLine } from '../utils/format';
 import Icon from '../components/Icon';
 import AddToListDialog from '../components/AddToListDialog';
 import AddToPlanDialog from '../components/AddToPlanDialog';
+import CookDialog from '../components/CookDialog';
 import RecipeCostPanel from '../components/RecipeCostPanel';
 
 // Screen Wake Lock only exists in secure contexts (https or localhost). Over
@@ -28,7 +29,7 @@ export default function RecipeDetail() {
   const [servings, setServings] = useState(1);
   const [haveIngredients, setHaveIngredients] = useState<Set<string>>(new Set());
   const [doneSteps, setDoneSteps] = useState<Set<string>>(new Set());
-  const [dialog, setDialog] = useState<'list' | 'plan' | null>(null);
+  const [dialog, setDialog] = useState<'list' | 'plan' | 'cook' | null>(null);
   const [planned, setPlanned] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [awake, setAwake] = useState(false);
@@ -136,6 +137,9 @@ export default function RecipeDetail() {
         <button type="button" className="button secondary" onClick={() => setDialog('list')}>
           <Icon name="cart" /> Shopping list
         </button>
+        <button type="button" className="button secondary" onClick={() => setDialog('cook')} title="Take what you used out of the pantry">
+          <Icon name="check" /> I cooked this
+        </button>
         <button
           type="button"
           className={`icon-button bordered${recipe.favorite ? ' fav' : ''}`}
@@ -234,6 +238,7 @@ export default function RecipeDetail() {
       {dialog === 'list' && (
         <AddToListDialog title={`Shopping for ${servings} serving${servings === 1 ? '' : 's'}`} load={loadPreview} onClose={() => setDialog(null)} />
       )}
+      {dialog === 'cook' && <CookDialog recipeId={recipe.id} servings={recipe.servings ? servings : null} onClose={() => setDialog(null)} />}
       {dialog === 'plan' && (
         <AddToPlanDialog
           recipe={{ id: recipe.id, name: recipe.name, servings }}

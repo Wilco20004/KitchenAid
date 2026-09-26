@@ -33,7 +33,7 @@ const DENSITY: [string, number][] = [
   ['breadcrumb', 0.45],
 ];
 
-function density(key: string): { value: number; known: boolean } {
+export function density(key: string): { value: number; known: boolean } {
   const hit = DENSITY.find(([word]) => key.includes(word));
   return hit ? { value: hit[1], known: true } : { value: 1, known: false };
 }

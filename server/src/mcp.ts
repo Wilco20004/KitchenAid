@@ -10,6 +10,7 @@ import { nameKey, parseIngredient } from './ingredients';
 import { addItem, ShoppingItemRow } from './shopping';
 import { addToPantry, daysLeft, expiringItems, findItem, isDate, itemDetail, latestPricesByStore, listItems, removeFromPantry, setExpiry } from './items';
 import { pricedItemFor, recipeCost } from './costing';
+import { applyUse, cookPlan, pantryItemFor, useFromPantry } from './cooking';
 import { NeedLine, paidPricesFor } from './paid';
 import { budgetProStatus, syncBudgetPro } from './budgetpro';
 import { search, toResult, ProductResult } from './prices/search';
@@ -422,11 +423,13 @@ function buildServer(): McpServer {
     {
       title: 'Update the pantry',
       description:
-        'Add things now at home ("2 kg rice"), mark things used up (by name), and/or set use-by dates: use_by is the date on ' +
+        'Add things now at home ("2 kg rice"), take off what was used ("2 hake medallions", "250 g mince" — what reaches nothing ' +
+        'leaves the pantry), mark things used up entirely (by name), and/or set use-by dates: use_by is the date on ' +
         'the pack (YYYY-MM-DD); keeps_days is how long that item usually lasts and is remembered for every later purchase ' +
         '(e.g. 90 for mince kept in the freezer).',
       inputSchema: {
         add: z.array(z.string().min(1)).optional(),
+        used: z.array(z.string().min(1)).optional(),
         used_up: z.array(z.string().min(1)).optional(),
         expiry: z
           .array(z.object({ name: z.string().min(1), use_by: z.string().optional(), keeps_days: z.number().int().min(1).max(3650).optional() }))
@@ -434,10 +437,16 @@ function buildServer(): McpServer {
       },
       annotations: { readOnlyHint: false },
     },
-    async ({ add, used_up, expiry }) => {
+    async ({ add, used, used_up, expiry }) => {
       const added = (add ?? []).map((text) => {
         const p = parseIngredient(text);
         return addToPantry({ name: p.name, quantity: p.quantity, unit: p.unit, note: p.note, source: 'ai' }).name;
+      });
+      const taken = (used ?? []).map((text) => {
+        const p = parseIngredient(text);
+        const item = pantryItemFor(p.name);
+        if (!item) return { item: p.name, left: null, removed: false, skipped: 'not in the pantry' };
+        return useFromPantry(item.id, { amount: { quantity: p.quantity, unit: p.unit } });
       });
       const removed: string[] = [];
       for (const name of used_up ?? []) {
@@ -459,7 +468,37 @@ function buildServer(): McpServer {
         const r = setExpiry(item.id, { expires_at: e.use_by, keeps_days: e.keeps_days });
         dated.push({ name: r.name, use_by: r.expires_at, keeps_days: r.keeps_days });
       }
-      return json({ added, removed, dated, ...(notFound.length ? { not_found: notFound } : {}) });
+      return json({ added, ...(taken.length ? { used: taken } : {}), removed, dated, ...(notFound.length ? { not_found: notFound } : {}) });
+    }
+  );
+
+  server.registerTool(
+    'cooked_recipe',
+    {
+      title: 'Take a cooked recipe out of the pantry',
+      description:
+        'After a recipe was cooked: subtract its ingredients from the pantry, scaled to the servings made (1 kg mince − 500 g → ' +
+        '500 g left; what reaches nothing leaves the pantry). Ingredients not at home and staples are skipped; items at home ' +
+        'without an amount are only removed when listed in used_up. dry_run shows the plan without changing anything.',
+      inputSchema: {
+        recipe: z.string().min(1).describe('Recipe id or name'),
+        servings: z.number().positive().optional(),
+        used_up: z.array(z.string()).optional().describe('Pantry items with no amount recorded that were finished'),
+        dry_run: z.boolean().optional(),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    async ({ recipe, servings, used_up, dry_run }) => {
+      const r = findRecipe(recipe);
+      if (!r) throw new Error(`No recipe matching "${recipe}"`);
+      const plan = cookPlan(r.id, servings ?? null);
+      if (dry_run) return json(plan);
+      const finished = new Set((used_up ?? []).map((n) => nameKey(n)));
+      const lines = plan.lines
+        .filter((l) => l.action !== 'unknown' || finished.has(nameKey(l.item)))
+        .map((l) => ({ item_id: l.item_id, amount: l.action === 'unknown' ? null : l.use_text, used_up: l.action !== 'subtract' }));
+      const skipped = plan.lines.filter((l) => l.action === 'unknown' && !finished.has(nameKey(l.item))).map((l) => l.item);
+      return json({ recipe: plan.recipe, servings: plan.servings, results: applyUse(lines), left_alone: skipped, not_at_home: plan.not_at_home });
     }
   );
 
