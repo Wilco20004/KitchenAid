@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 — 2026-09-26
+
+- Pet food whose name never says "dog" (Boss, Husky, Bobtail, Pedigree,
+  Whiskas and other pet brands) is no longer matched as groceries — "lamb
+  stew" found Boss Mighty Chunks.
+
 ## 0.5.0 — 2026-09-26
 
 - **Slip lines no longer land on the wrong item.** A line for a different

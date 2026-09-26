@@ -19,6 +19,8 @@ const FORM_WORDS = [
   'pizza', 'sandwich', 'noodle', 'noodles', 'yoghurt', 'yogurt',
   // not for us
   'dog', 'dogs', 'cat', 'cats', 'pet', 'pets', 'puppy', 'kitten', 'bird', 'birdseed', 'purity', 'infant', 'month', 'months',
+  // pet-food brands whose names never say "dog" ("Boss Mighty Chunks Lamb Stew")
+  'boss', 'husky', 'bobtail', 'dogmor', 'catmor', 'pedigree', 'whiskas', 'purina', 'montego', 'friskies', 'felix', 'jock', 'epol', 'canin', 'hills', 'optimizor', 'acana', 'orijen',
 ];
 
 const FORMS = new Set(FORM_WORDS);

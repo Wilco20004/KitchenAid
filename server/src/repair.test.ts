@@ -12,6 +12,7 @@ test('product forms: chips, energy bars, dog food and baby food are different th
   assert.equal(differentProduct('potato', 'Willards Crinkle Cut Open Fire Chops Flavoured Potato Chips 120g'), true);
   assert.equal(differentProduct('butter', 'Jungle Peanut Butter Energy Bar 47g'), true);
   assert.equal(differentProduct('beef mince', 'Husky Mince Beef Flavour Beef 775 g Wet Adult Dog Food'), true);
+  assert.equal(differentProduct('lamb stew', 'Boss Mighty Chunks Lamb Stew 775g'), true);
   assert.equal(differentProduct('sweet potato', 'Purity Jar Sweet Potato 125ml from 6 Months'), true);
   assert.equal(differentProduct('garlic', "Pot O' Gold Tomato Paste With Garlic 50g"), true);
   assert.equal(differentProduct('tomato paste', 'Blue Crane Tomato Paste 50g'), false);
