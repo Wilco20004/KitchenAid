@@ -1,5 +1,5 @@
 name: KitchenAid
-version: "0.7.0"
+version: "0.7.1"
 slug: kitchenaid
 description: Recipes, meal plan, shopping list, pantry with prices paid, and grocery price comparison — with an MCP endpoint for AI assistants
 url: https://github.com/Wilco20004/KitchenAid

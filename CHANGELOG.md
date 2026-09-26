@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.1 — 2026-09-26
+
+- **Packs count.** BudgetPro slips now put how many you bought in the pantry
+  (4 × MIAMI 50G → 4 packets; loose produce by the kg is left without an
+  amount). Cooking takes whole packs off: a recipe's "50 g tomato paste" is
+  1 of the 50 g sachets, "1 tin chopped tomatoes" is 1 of the 3 tins.
+- A pack only partly used drops to what's inside: 1 packet of 500 g mince
+  less 300 g leaves 200 g; a tray of 18 eggs less 2 leaves 16.
+- Buying more adds up across packs and weights: 1 kg mince at home plus
+  2 packets of 500 g is 2 kg.
+- "sachet", "box" and "tub" are understood as units.
+
 ## 0.7.0 — 2026-09-26
 
 - **I cooked this** on a recipe (and **Cooked it** on a meal plan entry):

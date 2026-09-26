@@ -4,6 +4,7 @@ import { addAmounts, nameKey, SIZE_WORDS } from './ingredients';
 import { guessCategoryName } from './categorize';
 import { parsePackSize } from './prices/units';
 import { differentProduct } from './productForms';
+import { addPantryAmounts, packContents } from './amounts';
 
 // The item catalogue (see the items / item_aliases tables in db.ts): finding
 // "the same thing" across names, barcodes and slip spellings, the pantry
@@ -240,6 +241,8 @@ export function addToPantry(input: {
   source?: string;
   bought_at?: string | null;
   expires_at?: string | null;
+  /** The label of the pack bought, when it says how big a pack is ("MIAMI 50G"). */
+  pack_label?: string | null;
 }): ItemRow {
   const item = input.itemId ? getItem(input.itemId) : ensureItem(input.name!);
   if (!item) throw new Error('Item not found');
@@ -247,8 +250,11 @@ export function addToPantry(input: {
   // Buying more of something already at home: add up when the units allow,
   // otherwise the newest amount wins.
   const incoming = { quantity: input.quantity ?? null, unit: input.unit ?? null };
+  const pack = packContents(input.pack_label) ?? packContents(item.pack_label);
   const amount = item.in_pantry
-    ? addAmounts({ quantity: item.pantry_quantity, unit: item.pantry_unit }, incoming) ?? incoming
+    ? addPantryAmounts({ quantity: item.pantry_quantity, unit: item.pantry_unit }, incoming, item.name, pack) ??
+      addAmounts({ quantity: item.pantry_quantity, unit: item.pantry_unit }, incoming) ??
+      incoming
     : incoming;
   // Its use-by date: given, or worked out from how long it usually keeps.
   // What was already at home goes off first, so the earlier date stays.

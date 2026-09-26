@@ -145,7 +145,16 @@ async function doSync(): Promise<SyncResult> {
           setPackPrice(item.id, line.amount / qty, line.raw_name, 'slip', boughtAt, { store, receiptId: summary.id, historyOnly: true });
         }
         if (full) {
-          addToPantry({ itemId: item.id, source: 'budgetpro', bought_at: boughtAt });
+          // How many packs: whole numbers only — loose produce weighed by the kg says nothing useful.
+          const packs = Number.isInteger(qty) && !/(^|\s)(kg|lse|loose)(\s|$)/i.test(line.raw_name) ? qty : null;
+          addToPantry({
+            itemId: item.id,
+            source: 'budgetpro',
+            bought_at: boughtAt,
+            quantity: packs,
+            unit: packs ? 'packet' : null,
+            pack_label: line.raw_name,
+          });
           result.items++;
           result.ticked += tickOffShopping(item.id, `${slipKey(line.raw_name)} ${item.name_key}`);
         }

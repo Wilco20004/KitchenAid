@@ -89,7 +89,10 @@ nothing leaves the pantry. Things at home with no amount recorded start
 unticked; tick them if they're finished. For a snack or a lunch without a
 recipe, open the item and use **Used some?** ("2", "250 g"). Amounts come
 off when the units fit (g and kg, ml and L, counts); cups of something kept
-by weight are converted roughly. Ticking ingredients while cooking is just a
+by weight are converted roughly. Packs count too: slips record how many you
+bought, and the pack size on the slip ("MIAMI 50G") means "50 g tomato paste"
+takes one sachet off, while a part-used pack drops to grams (a 500 g packet
+of mince less 300 g leaves 200 g). Ticking ingredients while cooking is just a
 checklist and doesn't change the pantry.
 
 For a Home Assistant sensor or notification, `GET /api/pantry/expiring?days=3`

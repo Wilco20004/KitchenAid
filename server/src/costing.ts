@@ -4,39 +4,13 @@ import { findItem, ItemRow, wordsWithin } from './items';
 import { search } from './prices/search';
 import { isKitchenware, searchTerm } from './prices/basket';
 import { sameProductForm } from './productForms';
+import { density } from './amounts';
 
 // What a recipe costs to make, from what you actually paid: each ingredient
 // is matched to an item in the catalogue and its amount multiplied by that
 // item's unit price (eggs at R4 each, recipe wants 2 → R8). Ingredients never
 // bought yet can fall back to today's cached store prices, marked as such.
 // Only the amount used is counted, not the whole pack.
-
-// Rough grams per millilitre, for recipes that measure by cup/spoon what
-// was bought by weight. Anything not listed is treated like water.
-const DENSITY: [string, number][] = [
-  ['flour', 0.53],
-  ['icing sugar', 0.5],
-  ['brown sugar', 0.83],
-  ['sugar', 0.85],
-  ['rice', 0.8],
-  ['oat', 0.4],
-  ['butter', 0.96],
-  ['oil', 0.92],
-  ['honey', 1.4],
-  ['cocoa', 0.45],
-  ['cacao', 0.45],
-  ['salt', 1.2],
-  ['baking powder', 0.9],
-  ['baking soda', 0.9],
-  ['maize meal', 0.6],
-  ['cheese', 0.45],
-  ['breadcrumb', 0.45],
-];
-
-export function density(key: string): { value: number; known: boolean } {
-  const hit = DENSITY.find(([word]) => key.includes(word));
-  return hit ? { value: hit[1], known: true } : { value: 1, known: false };
-}
 
 const COUNT_UNITS = new Set([null, 'piece', 'can', 'tin', 'packet', 'bottle', 'jar', 'bag', 'head', 'bunch', 'stick', 'sheet', 'slice']);
 

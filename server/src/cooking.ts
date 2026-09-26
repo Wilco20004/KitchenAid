@@ -1,8 +1,8 @@
 import { db } from './db';
-import { Amount, formatAmount, nameKey, parseIngredient, toBase } from './ingredients';
+import { Amount, formatAmount as formatSingular, nameKey, parseIngredient } from './ingredients';
 import { findItem, getItem, ItemRow, removeFromPantry, wordsWithin } from './items';
 import { sameProductForm } from './productForms';
-import { density } from './costing';
+import { packContents, PackContents, subtractAmounts } from './amounts';
 
 // Taking what was used out of the pantry: after cooking a recipe ("I cooked
 // this") or by hand ("Use some" — 2 hake medallions for lunch). Amounts come
@@ -32,7 +32,15 @@ export interface UseResult {
   skipped?: string;
 }
 
-const COUNT_UNITS = new Set([null, 'piece', 'pieces', 'each', 'ea']);
+const NO_PLURAL = new Set(['g', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'oz', 'lb', 'fl oz']);
+
+/** "3 packets", "1 sachet", "500 g" — as the pantry page writes them. */
+function formatAmount(a: Amount): string {
+  const text = formatSingular(a);
+  if (!a.unit || a.quantity === null || a.quantity <= 1 || NO_PLURAL.has(a.unit)) return text;
+  return `${text}${/(ch|sh|s|x)$/.test(a.unit) ? 'es' : 's'}`;
+}
+
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
 /** The pantry item a recipe ingredient takes from, if any: "beef mince" → Beef Mince, never "coconut milk" → Milk. */
@@ -53,35 +61,14 @@ export function pantryItemFor(name: string): ItemRow | undefined {
     .sort((a, b) => a.name_key.split(' ').length - b.name_key.split(' ').length)[0];
 }
 
-/**
- * What's left of `have` after using `use`, in the pantry's own unit (kg
- * drops to g below 1). Cups of something kept by weight convert by density
- * (approx). Null when it can't be worked out.
- */
-export function remainingAfter(have: Amount, use: Amount, name: string): { left: Amount; approx: boolean } | null {
-  if (have.quantity === null || use.quantity === null) return null;
-  const sameCount = have.unit === use.unit || (COUNT_UNITS.has(have.unit) && COUNT_UNITS.has(use.unit));
-  if (sameCount) return { left: { quantity: r3(have.quantity - use.quantity), unit: have.unit }, approx: false };
-  const h = toBase(have.quantity, have.unit);
-  const u = toBase(use.quantity, use.unit);
-  if (!h || !u) return null;
-  let used = u.amount;
-  let approx = false;
-  if (h.family !== u.family) {
-    const d = density(nameKey(name)).value;
-    used = h.family === 'mass' ? used * d : used / d;
-    approx = true;
-  }
-  const base = h.amount - used;
-  const factor = h.amount / have.quantity; // grams (or ml) per pantry unit
-  const bigUnit = have.unit === 'kg' || have.unit === 'l';
-  if (bigUnit && base < 1000) return { left: { quantity: r3(base), unit: have.unit === 'kg' ? 'g' : 'ml' }, approx };
-  return { left: { quantity: r3(base / factor), unit: have.unit }, approx };
+/** What's left of `have` after using `use` — see subtractAmounts. */
+export function remainingAfter(have: Amount, use: Amount, name: string, pack: PackContents | null = null) {
+  return subtractAmounts(have, use, name, pack);
 }
 
 function planLine(ingredient: string, item: ItemRow, use: Amount): UsePlanLine {
   const have: Amount = { quantity: item.pantry_quantity, unit: item.pantry_unit };
-  const r = remainingAfter(have, use, item.name);
+  const r = remainingAfter(have, use, item.name, packContents(item.pack_label));
   const finished = r !== null && (r.left.quantity ?? 0) <= 0.0001;
   return {
     ingredient,
