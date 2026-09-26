@@ -78,3 +78,21 @@ test('repair: drops misread-slip prices and junk items, moves wrongly linked sli
   const r = items.getItem(rolls.id)!;
   assert.deepEqual([r.pack_price, r.in_pantry], [20, 0]);
 });
+
+test('costing: an item priced from a bare slip label still counts as what its name says', async () => {
+  const items = await import('./items');
+  const { pricedItemFor } = await import('./costing');
+  const paste = items.ensureItem('Tomato Paste');
+  items.setPackPrice(paste.id, 7.99, 'MIAMI 50G', 'slip', '2026-09-20');
+  const whole = items.ensureItem('Tomato Whole');
+  items.setPackPrice(whole.id, 25, 'Tomatoes 1kg', 'slip', '2026-09-20');
+  assert.equal(pricedItemFor('tomato paste')?.id, paste.id);
+  assert.notEqual(pricedItemFor('chopped tomatoes')?.id, paste.id);
+});
+
+test('pack sizes: garlic counted in cloves or heads', async () => {
+  const { unitPriceOf } = await import('./items');
+  assert.deepEqual(unitPriceOf(45, '30 cloves'), { unitPrice: 1.5, priceUnit: 'item' });
+  assert.equal(unitPriceOf(45, '3 heads').unitPrice, 15);
+  assert.equal(unitPriceOf(20, 'Ground cloves 50g').priceUnit, 'g');
+});

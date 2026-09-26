@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1 — 2026-09-26
+
+- Recipe costs find items priced from a bare slip label again: tomato paste
+  bought as "MIAMI 50G" was skipped since 0.5.2 because the label never
+  says "paste".
+- Pack sizes counted in cloves, heads or bulbs ("30 cloves") give a price
+  per clove instead of per pack.
+
 ## 0.6.0 — 2026-09-26
 
 - **Use-by dates in the pantry.** Set the date on the pack, or how long an

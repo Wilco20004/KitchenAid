@@ -63,7 +63,7 @@ export function parsePackSize(text: string): PackSize {
     size.unit = 'sheet';
   }
 
-  const COUNT_NOUN = String.raw`(?:rolls?|cans?|tins?|bottles?|pieces?|pcs|sachets?|bags?|units?|pack|pac|pk|ea)\b`;
+  const COUNT_NOUN = String.raw`(?:rolls?|cans?|tins?|bottles?|pieces?|pcs|sachets?|bags?|units?|cloves?|heads?|bulbs?|pack|pac|pk|ea)\b`;
   // Makro: "Pack of 2 x 24 Rolls" is two 24-roll packs. But its listings
   // also say "Pack of 72 x 72 Rolls" for a single 72-roll bale (the prices
   // only make sense that way), so equal numbers count once.

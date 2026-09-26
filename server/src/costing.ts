@@ -63,13 +63,16 @@ const money = (n: number) => `R${n < 1 ? n.toFixed(3) : n.toFixed(2)}`;
 
 /** The priced item that best matches an ingredient name, if any. */
 export function pricedItemFor(name: string): ItemRow | undefined {
+  // What an item is: its name plus the pack it was priced from — a slip label
+  // alone ("MIAMI 50G") often doesn't say it's tomato paste.
+  const described = (i: ItemRow) => `${i.name} ${i.pack_label ?? ''}`;
   const exact = findItem({ name });
-  if (exact?.unit_price != null && sameProductForm(name, exact.pack_label ?? '')) return exact;
+  if (exact?.unit_price != null && sameProductForm(name, described(exact))) return exact;
   const key = nameKey(name);
   const candidates = db.prepare('SELECT * FROM items WHERE unit_price IS NOT NULL').all() as ItemRow[];
   // "white sugar" ↔ "sugar" either way round; the closest word count wins.
   return candidates
-    .filter((i) => (wordsWithin(key, i.name_key) || wordsWithin(i.name_key, key)) && sameProductForm(key, i.pack_label ?? i.name))
+    .filter((i) => (wordsWithin(key, i.name_key) || wordsWithin(i.name_key, key)) && sameProductForm(key, described(i)))
     .sort((a, b) => Math.abs(a.name_key.split(' ').length - key.split(' ').length) - Math.abs(b.name_key.split(' ').length - key.split(' ').length))[0];
 }
 
