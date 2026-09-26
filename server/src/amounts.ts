@@ -51,6 +51,14 @@ export function packContents(label: string | null | undefined): PackContents | n
   return null;
 }
 
+/** A remembered "one pack is …" as contents: 500 g → 500 g, 24 pieces → 24 items; a pack unit (1 tin) says nothing. */
+export function contentsFrom(quantity: number | null, unit: string | null): PackContents | null {
+  if (quantity === null || !(quantity > 0)) return null;
+  if (ITEM_UNITS.has(unit)) return quantity > 1 ? { amount: quantity, unit: 'item' } : null;
+  const b = toBase(quantity, unit);
+  return b ? { amount: b.amount, unit: b.family === 'mass' ? 'g' : 'ml' } : null;
+}
+
 type Measure = { value: number; unit: 'g' | 'ml' | 'item' | 'pack' };
 
 function measure(a: Amount): Measure | null {

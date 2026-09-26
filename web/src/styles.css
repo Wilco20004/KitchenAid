@@ -2275,3 +2275,86 @@ table.mini tr.winner td {
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
+/* ---------- slip review sheet ---------- */
+
+.slip-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--warn-ink);
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.slip-banner > span:nth-child(2) {
+  flex: 1;
+}
+
+.slip h3 {
+  margin: 0.9rem 0 0.3rem;
+}
+
+.slip-lines {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.slip-lines li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.slip-lines li.off {
+  opacity: 0.5;
+}
+
+.slip-raw {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.slip-fields {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.35rem 0.5rem;
+  align-items: center;
+  margin: 0.35rem 0 0 1.6rem;
+}
+
+.slip-pack {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.slip-pack input:not([type='checkbox']) {
+  width: 4.5rem;
+}
+
+.slip-pack select {
+  width: auto;
+}
+
+.slip-total {
+  grid-column: 1 / -1;
+}
+
+.slip-lines li.guess .slip-total {
+  color: var(--warn-ink);
+}
+
+@media (max-width: 560px) {
+  .slip-fields {
+    grid-template-columns: 1fr;
+  }
+}

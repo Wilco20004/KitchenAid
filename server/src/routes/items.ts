@@ -22,6 +22,7 @@ import {
 } from '../items';
 import { budgetProStatus, syncBudgetPro } from '../budgetpro';
 import { parseAmount, useFromPantry } from '../cooking';
+import { acceptSlipLines, pendingSlips, skipSlipLines } from '../slips';
 import { setSetting } from '../settings';
 
 // The item catalogue, the pantry (items flagged in_pantry), barcodes and the
@@ -233,6 +234,31 @@ itemsRouter.get('/barcode/:code', async (req, res) => {
       .map((x) => ({ id: x.i.id, name: x.i.name }));
   }
   res.json({ code, item: null, lookup, suggestions });
+});
+
+// ---------- slip review sheet ----------
+
+// GET /api/slips — lines from new slips waiting to be checked before they go into the pantry
+itemsRouter.get('/slips', (_req, res) => {
+  const slips = pendingSlips();
+  res.json({ count: slips.reduce((n, s) => n + s.lines.length, 0), slips });
+});
+
+// POST /api/slips/accept { lines: [{ id, item_id | item_name, pack_quantity, pack_unit }] }
+itemsRouter.post('/slips/accept', (req, res) => {
+  const lines = Array.isArray(req.body?.lines) ? req.body.lines.filter((l: any) => typeof l?.id === 'string') : null;
+  if (!lines?.length) return res.status(400).json({ error: 'lines are required' });
+  try {
+    res.json({ results: acceptSlipLines(lines) });
+  } catch (e) {
+    fail(res, e);
+  }
+});
+
+// POST /api/slips/skip { ids } — not for the pantry
+itemsRouter.post('/slips/skip', (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((x: unknown) => typeof x === 'string') : [];
+  res.json({ skipped: skipSlipLines(ids) });
 });
 
 // ---------- BudgetPro ----------

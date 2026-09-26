@@ -24,6 +24,7 @@ import {
   Slot,
   Staple,
   CookPlan,
+  PendingSlip,
   UseResult,
 } from '../types';
 
@@ -156,7 +157,13 @@ export const api = {
   mergeItem: (id: string, into: string) => request<ItemDetail>(`api/items/${id}/merge`, json('POST', { into })),
   lookupBarcode: (code: string) => request<BarcodeResult>(`api/barcode/${encodeURIComponent(code)}`),
   budgetProStatus: () => request<BudgetProStatus>('api/budgetpro'),
-  syncBudgetPro: () => request<{ receipts: number; items: number; ticked: number; skipped: number }>('api/budgetpro/sync', { method: 'POST' }),
+  syncBudgetPro: () =>
+    request<{ receipts: number; items: number; ticked: number; skipped: number; pending?: number }>('api/budgetpro/sync', { method: 'POST' }),
+  pendingSlips: () => request<{ count: number; slips: PendingSlip[] }>('api/slips'),
+  acceptSlipLines: (
+    lines: { id: string; item_id?: string | null; item_name?: string | null; pack_quantity?: number | null; pack_unit?: string | null }[]
+  ) => request<{ results: { raw_name: string; item: string; amount: string | null; ticked: number }[] }>('api/slips/accept', json('POST', { lines })),
+  skipSlipLines: (ids: string[]) => request<{ skipped: number }>('api/slips/skip', json('POST', { ids })),
 
   // prices
   priceStores: () => request<{ id: string; name: string }[]>('api/prices/stores'),

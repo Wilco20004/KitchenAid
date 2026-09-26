@@ -178,12 +178,24 @@ and the AI can ask via the `prices_paid` tool.
 
 ## BudgetPro
 
+New grocery slips don't go straight into the pantry: their lines wait on a
+**review sheet** (a banner on the Pantry page says how many). For each line,
+check the item it goes to — pick another or type a better name — and what
+**one pack** holds (500 g, 1 tin, 24 pieces, or "no amount"). The total
+going in is shown beside it. Untick lines that aren't for the pantry and
+skip them. Whatever you answer is remembered for that slip spelling and for
+the item, so the same lines next time are filled in (marked ✓) and checking
+a slip is one tap; lines still on a guess are marked *check*. The pack size
+also turns a price like "BONNITA BUTTER R59.99" into a price per gram for
+recipe costs.
+
 Set `budgetpro_url` (BudgetPro's own port, e.g. `http://10.1.1.3:8097`) and
 `budgetpro_token` (BudgetPro → Settings → API & AI access) in the add-on's
 **Configuration** tab and restart. Every 30 minutes (or **Check now**) new
 *parsed* slips are read: lines in the `budgetpro_categories` categories
-(default *Groceries*, subcategories included) go into the pantry with the
-price paid, and matching shopping-list items are ticked off. Only slips from
+(default *Groceries*, subcategories included) have their price recorded and
+go onto the review sheet above; checking them puts them in the pantry and
+ticks matching shopping-list items off. Only slips from
 the last week are read the first time. BudgetPro itself is never changed.
 
 ## AI assistants (MCP)

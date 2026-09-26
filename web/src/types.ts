@@ -216,6 +216,23 @@ export interface BudgetProStatus {
   lastSync: string | null;
   lastResult: { receipts: number; items: number; ticked: number; skipped: number } | null;
   lastError: string | null;
+  pending?: number;
+}
+
+export interface SlipLine {
+  id: string;
+  raw_name: string;
+  quantity: number;
+  amount: number;
+  item: { id: string; name: string; in_pantry: boolean } | null;
+  pack: { quantity: number | null; unit: string | null; from: 'remembered' | 'label' | 'guess' | 'loose' };
+}
+
+export interface PendingSlip {
+  receipt_id: string;
+  store: string | null;
+  bought_at: string;
+  lines: SlipLine[];
 }
 
 export interface CostLine {

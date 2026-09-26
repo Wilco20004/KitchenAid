@@ -1,8 +1,8 @@
 import { db } from './db';
 import { Amount, formatAmount as formatSingular, nameKey, parseIngredient } from './ingredients';
-import { findItem, getItem, ItemRow, removeFromPantry, wordsWithin } from './items';
+import { findItem, getItem, ItemRow, packOf, removeFromPantry, wordsWithin } from './items';
 import { sameProductForm } from './productForms';
-import { packContents, PackContents, subtractAmounts } from './amounts';
+import { PackContents, subtractAmounts } from './amounts';
 
 // Taking what was used out of the pantry: after cooking a recipe ("I cooked
 // this") or by hand ("Use some" — 2 hake medallions for lunch). Amounts come
@@ -68,7 +68,7 @@ export function remainingAfter(have: Amount, use: Amount, name: string, pack: Pa
 
 function planLine(ingredient: string, item: ItemRow, use: Amount): UsePlanLine {
   const have: Amount = { quantity: item.pantry_quantity, unit: item.pantry_unit };
-  const r = remainingAfter(have, use, item.name, packContents(item.pack_label));
+  const r = remainingAfter(have, use, item.name, packOf(item.pack_label, item.id));
   const finished = r !== null && (r.left.quantity ?? 0) <= 0.0001;
   return {
     ingredient,

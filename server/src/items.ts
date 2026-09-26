@@ -4,7 +4,7 @@ import { addAmounts, nameKey, SIZE_WORDS } from './ingredients';
 import { guessCategoryName } from './categorize';
 import { parsePackSize } from './prices/units';
 import { differentProduct } from './productForms';
-import { addPantryAmounts, packContents } from './amounts';
+import { addPantryAmounts, contentsFrom, PackContents, packContents } from './amounts';
 
 // The item catalogue (see the items / item_aliases tables in db.ts): finding
 // "the same thing" across names, barcodes and slip spellings, the pantry
@@ -250,7 +250,7 @@ export function addToPantry(input: {
   // Buying more of something already at home: add up when the units allow,
   // otherwise the newest amount wins.
   const incoming = { quantity: input.quantity ?? null, unit: input.unit ?? null };
-  const pack = packContents(input.pack_label) ?? packContents(item.pack_label);
+  const pack = packOf(input.pack_label, item.id) ?? packOf(item.pack_label, item.id);
   const amount = item.in_pantry
     ? addPantryAmounts({ quantity: item.pantry_quantity, unit: item.pantry_unit }, incoming, item.name, pack) ??
       addAmounts({ quantity: item.pantry_quantity, unit: item.pantry_unit }, incoming) ??
@@ -343,6 +343,55 @@ export function unitPriceOf(packPrice: number, packLabel: string): { unitPrice: 
   return { unitPrice: packPrice / Math.max(1, size.count), priceUnit: 'item' };
 }
 
+/** What you said one pack of this slip spelling is ("BONNITA BUTTER" → 500 g), if anything. */
+export function rememberedPack(label: string | null | undefined): { quantity: number; unit: string | null } | null {
+  const key = label ? slipKey(label) : '';
+  if (!key) return null;
+  return (
+    (db
+      .prepare("SELECT pack_quantity AS quantity, pack_unit AS unit FROM item_aliases WHERE kind = 'slip' AND value = ? AND pack_quantity IS NOT NULL")
+      .get(key) as { quantity: number; unit: string | null } | undefined) ?? null
+  );
+}
+
+/**
+ * The pack an item usually comes in, from the slip spellings linked to it
+ * (the latest one you gave a size): "Butter" → 500 g, whichever brand's slip
+ * line it was.
+ */
+export function usualPack(itemId: string | null | undefined): { quantity: number; unit: string | null } | null {
+  if (!itemId) return null;
+  return (
+    (db
+      .prepare(
+        "SELECT pack_quantity AS quantity, pack_unit AS unit FROM item_aliases WHERE item_id = ? AND kind = 'slip' AND pack_quantity IS NOT NULL ORDER BY created_at DESC LIMIT 1"
+      )
+      .get(itemId) as { quantity: number; unit: string | null } | undefined) ?? null
+  );
+}
+
+/** The remembered pack for a slip line: its own spelling first, then the item it's linked to. */
+function knownPack(label: string | null | undefined, itemId?: string | null) {
+  return rememberedPack(label) ?? (label && parsePackSize(label).each !== null ? null : usualPack(itemId));
+}
+
+/** What one pack bought as `label` holds: remembered from the slip review (this spelling, then the item), else read off the label. */
+export function packOf(label: string | null | undefined, itemId?: string | null): PackContents | null {
+  const r = knownPack(label, itemId);
+  return (r && contentsFrom(r.quantity, r.unit)) ?? packContents(label);
+}
+
+/** Unit price from a pack, preferring a remembered pack size over what the label says. */
+export function unitPriceFor(packPrice: number, packLabel: string, itemId?: string | null): { unitPrice: number; priceUnit: 'item' | 'g' | 'ml' } {
+  const r = knownPack(packLabel, itemId);
+  const c = r && contentsFrom(r.quantity, r.unit);
+  if (c) return c.unit === 'item' ? { unitPrice: packPrice / c.amount, priceUnit: 'item' } : { unitPrice: packPrice / c.amount, priceUnit: c.unit };
+  // "1 sachet" says how it comes, not what's in it: a size on the label ("MIAMI 50G") still prices it per gram.
+  const fromLabel = unitPriceOf(packPrice, packLabel);
+  if (r && fromLabel.priceUnit === 'item') return { unitPrice: packPrice / Math.max(1, r.quantity), priceUnit: 'item' };
+  return fromLabel;
+}
+
 /** "SHOPRITE CHECKERS HYPER MENLYN" → "Checkers"; unknown shops keep their own name. */
 export function storeName(merchant: string | null | undefined): string | null {
   const m = (merchant ?? '').trim();
@@ -377,7 +426,7 @@ export function setPackPrice(
   at?: string,
   opts: { store?: string | null; receiptId?: string | null; historyOnly?: boolean } = {}
 ) {
-  const { unitPrice, priceUnit } = unitPriceOf(packPrice, packLabel);
+  const { unitPrice, priceUnit } = unitPriceFor(packPrice, packLabel, itemId);
   const seenAt = at ?? now().slice(0, 10);
   db.prepare(
     `INSERT INTO item_prices (id, item_id, store, pack_price, pack_label, unit_price, price_unit, source, seen_at, receipt_id)

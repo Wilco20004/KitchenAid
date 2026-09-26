@@ -172,6 +172,26 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_item_aliases_item ON item_aliases(item_id);
 
+  -- Grocery lines from BudgetPro slips waiting to be checked before they go
+  -- into the pantry: which item, and what one pack of it is (2 × "BONNITA
+  -- BUTTER" is 2 × 500 g). status: pending, added or skipped. What you
+  -- answer is remembered on the slip spelling (item_aliases.pack_quantity /
+  -- pack_unit), so the same line next time arrives already filled in.
+  CREATE TABLE IF NOT EXISTS slip_lines (
+    id TEXT PRIMARY KEY,
+    receipt_id TEXT NOT NULL,
+    store TEXT,
+    bought_at TEXT NOT NULL,
+    raw_name TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    amount REAL NOT NULL,
+    item_id TEXT REFERENCES items(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    done_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_slip_lines_status ON slip_lines(status, bought_at);
+
   -- Every price actually paid, per shop — mostly from BudgetPro slips. This
   -- is how Checkers and SPAR get compared: neither publishes prices a
   -- program may read, but your slips from them say exactly what things cost.
@@ -291,6 +311,9 @@ function addColumn(table: string, column: string, type: string) {
 }
 addColumn('items', 'expires_at', 'TEXT');
 addColumn('items', 'keeps_days', 'INTEGER');
+// What one pack of a slip spelling is in the pantry (500 g, 1 tin, 24 pieces).
+addColumn('item_aliases', 'pack_quantity', 'REAL');
+addColumn('item_aliases', 'pack_unit', 'TEXT');
 
 // First run: a default list, a sensible aisle order, and a few staples.
 const now = new Date().toISOString();

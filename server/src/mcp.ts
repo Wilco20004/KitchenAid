@@ -10,7 +10,8 @@ import { nameKey, parseIngredient } from './ingredients';
 import { addItem, ShoppingItemRow } from './shopping';
 import { addToPantry, daysLeft, expiringItems, findItem, isDate, itemDetail, latestPricesByStore, listItems, removeFromPantry, setExpiry } from './items';
 import { pricedItemFor, recipeCost } from './costing';
-import { applyUse, cookPlan, pantryItemFor, useFromPantry } from './cooking';
+import { applyUse, cookPlan, pantryItemFor, parseAmount, useFromPantry } from './cooking';
+import { acceptSlipLines, pendingSlips, skipSlipLines } from './slips';
 import { NeedLine, paidPricesFor } from './paid';
 import { budgetProStatus, syncBudgetPro } from './budgetpro';
 import { search, toResult, ProductResult } from './prices/search';
@@ -503,6 +504,50 @@ function buildServer(): McpServer {
   );
 
   server.registerTool(
+    'slip_review',
+    {
+      title: 'Slip lines waiting to be checked',
+      description:
+        'Grocery lines from new BudgetPro slips wait here before going into the pantry. Each has the slip text, how many ' +
+        'were bought, the price, the item it will go to, and a guess of what ONE pack is (pack.quantity + pack.unit, e.g. ' +
+        '500 g, 1 tin, 24 piece). pack.from: remembered (the user said so before), label (read off the slip), guess or loose.',
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => json(pendingSlips())
+  );
+
+  server.registerTool(
+    'accept_slip_lines',
+    {
+      title: 'Check slip lines into the pantry',
+      description:
+        'Accept lines from slip_review into the pantry (and tick them off the shopping list). For each line optionally give ' +
+        'item (an existing item name, or a new name) and pack — what ONE pack is, e.g. "500 g", "1 tin", "24" (pieces), or "" ' +
+        'for no amount. Answers are remembered for that slip spelling and item. skip lists line ids that are not for the pantry. ' +
+        'Only accept what the user confirmed.',
+      inputSchema: {
+        lines: z.array(z.object({ id: z.string(), item: z.string().optional(), pack: z.string().optional() })).optional(),
+        skip: z.array(z.string()).optional(),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    async ({ lines, skip }) => {
+      const results = acceptSlipLines(
+        (lines ?? []).map((l) => {
+          const pack = l.pack === undefined ? undefined : l.pack.trim() ? parseAmount(l.pack) : { quantity: null, unit: null };
+          return {
+            id: l.id,
+            item_name: l.item ?? null,
+            ...(pack ? { pack_quantity: pack.quantity, pack_unit: pack.unit ?? (pack.quantity !== null ? 'piece' : null) } : {}),
+          };
+        })
+      );
+      return json({ added: results, skipped: skipSlipLines(skip ?? []) });
+    }
+  );
+
+  server.registerTool(
     'find_item',
     {
       title: 'Look up an item',
@@ -544,7 +589,7 @@ function buildServer(): McpServer {
     'sync_budgetpro',
     {
       title: 'Pull new grocery slips from BudgetPro',
-      description: 'Add grocery lines from new BudgetPro slips to the pantry and tick them off the shopping list. Runs every 30 minutes on its own.',
+      description: 'Fetch new BudgetPro slips onto the slip review sheet (see slip_review). Runs every 30 minutes on its own.',
       annotations: { readOnlyHint: false, idempotentHint: true },
     },
     async () => json(budgetProStatus().configured ? await syncBudgetPro() : { error: 'BudgetPro is not connected in the add-on configuration' })

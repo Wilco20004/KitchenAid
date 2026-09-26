@@ -6,6 +6,7 @@ import Icon from '../components/Icon';
 import Modal from '../components/Modal';
 import ItemSheet from '../components/ItemSheet';
 import BarcodeScanner from '../components/BarcodeScanner';
+import SlipReview from '../components/SlipReview';
 
 export default function Pantry() {
   const [view, setView] = useState<'home' | 'all'>('home');
@@ -18,6 +19,7 @@ export default function Pantry() {
   const [scanResult, setScanResult] = useState<BarcodeResult | null>(null);
   const [bp, setBp] = useState<BudgetProStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,9 +72,10 @@ export default function Pantry() {
       const r = await api.syncBudgetPro();
       setMessage(
         r.receipts
-          ? `${r.receipts} new slip${r.receipts === 1 ? '' : 's'}: ${r.items} item${r.items === 1 ? '' : 's'} added${r.ticked ? `, ${r.ticked} ticked off the shopping list` : ''}.`
+          ? `${r.receipts} new slip${r.receipts === 1 ? '' : 's'}: ${r.items} line${r.items === 1 ? '' : 's'} to check.`
           : 'No new grocery slips.'
       );
+      if (r.items) setReviewing(true);
       setBp(await api.budgetProStatus());
       reload();
     } catch (e: any) {
@@ -145,6 +148,18 @@ export default function Pantry() {
         </div>
       )}
       {bp?.lastError && <p className="error small">BudgetPro: {bp.lastError}</p>}
+      {(bp?.pending ?? 0) > 0 && (
+        <button type="button" className="slip-banner" onClick={() => setReviewing(true)}>
+          <Icon name="check" size={16} />
+          <span>
+            <strong>
+              {bp!.pending} slip line{bp!.pending === 1 ? '' : 's'} to check
+            </strong>{' '}
+            <span className="muted small">before they go into the pantry</span>
+          </span>
+          <span className="link small">Check</span>
+        </button>
+      )}
       {message && <p className="notice small">{message}</p>}
       {error && <p className="error">{error}</p>}
 
@@ -227,6 +242,15 @@ export default function Pantry() {
             setScanResult(null);
             setOpenId(id);
             reload();
+          }}
+        />
+      )}
+      {reviewing && (
+        <SlipReview
+          onClose={() => setReviewing(false)}
+          onDone={() => {
+            reload();
+            api.budgetProStatus().then(setBp).catch(() => undefined);
           }}
         />
       )}

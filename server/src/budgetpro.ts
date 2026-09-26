@@ -1,11 +1,13 @@
 import { db } from './db';
-import { addToPantry, itemForSlipLine, setPackPrice, slipKey, storeName, wordsWithin } from './items';
+import { itemForSlipLine, setPackPrice, storeName } from './items';
+import { pendingCount, queueSlipLines } from './slips';
 import { getBudgetProOptions, getSetting, setSetting } from './settings';
 
 // Pulls grocery slips from the BudgetPro add-on (its REST API, with the API
 // token from BudgetPro → Settings → API & AI access). Every grocery line on a
-// new slip goes into the pantry, and anything on the shopping list that the
-// slip shows you bought gets ticked off. BudgetPro itself isn't changed.
+// new slip goes to the slip review sheet (slips.ts): once checked it goes
+// into the pantry and ticks off the shopping list. BudgetPro itself isn't
+// changed.
 
 const SYNC_EVERY_MS = 30 * 60 * 1000;
 // First sync only looks back this far, so connecting doesn't pour months of
@@ -19,8 +21,11 @@ export const MAX_PACK_PRICE = 2000;
 
 export interface SyncResult {
   receipts: number;
+  /** Lines put on the review sheet this sync. */
   items: number;
   ticked: number;
+  /** Lines waiting on the review sheet altogether. */
+  pending?: number;
   skipped: number;
   history_receipts: number;
   lastSync: string;
@@ -136,6 +141,7 @@ async function doSync(): Promise<SyncResult> {
     const store = storeName(receipt.merchant_name ?? summary.merchant_name);
 
     db.transaction(() => {
+      const queued: { raw_name: string; quantity: number; amount: number; item_id: string }[] = [];
       for (const line of bought) {
         const item = itemForSlipLine(line.raw_name);
         // What one pack cost (a line can be "2 x"). The item's own "last
@@ -144,27 +150,16 @@ async function doSync(): Promise<SyncResult> {
         if (!seen(priceExt)) {
           setPackPrice(item.id, line.amount / qty, line.raw_name, 'slip', boughtAt, { store, receiptId: summary.id, historyOnly: true });
         }
-        if (full) {
-          // How many packs: whole numbers only — loose produce weighed by the kg says nothing useful.
-          const packs = Number.isInteger(qty) && !/(^|\s)(kg|lse|loose)(\s|$)/i.test(line.raw_name) ? qty : null;
-          addToPantry({
-            itemId: item.id,
-            source: 'budgetpro',
-            bought_at: boughtAt,
-            quantity: packs,
-            unit: packs ? 'packet' : null,
-            pack_label: line.raw_name,
-          });
-          result.items++;
-          result.ticked += tickOffShopping(item.id, `${slipKey(line.raw_name)} ${item.name_key}`);
-        }
+        if (full) queued.push({ raw_name: line.raw_name, quantity: qty, amount: line.amount, item_id: item.id });
       }
+      if (full) result.items += queueSlipLines(summary.id, store, boughtAt, queued);
       mark(priceExt, summary.id);
       if (full) mark(ext, summary.id);
     })();
     if (full) result.receipts++;
     else result.history_receipts++;
   }
+  result.pending = pendingCount();
   setSetting('budgetpro_last_sync', result.lastSync);
   setSetting('budgetpro_last_result', JSON.stringify(result));
   setSetting('budgetpro_last_error', '');
@@ -172,23 +167,6 @@ async function doSync(): Promise<SyncResult> {
 }
 
 /** Tick open shopping-list lines for this item (or whose words all appear on the slip line). */
-function tickOffShopping(itemId: string, slipWords: string): number {
-  const open = db.prepare('SELECT id, item_id, name_key FROM shopping_items WHERE checked = 0').all() as {
-    id: string;
-    item_id: string | null;
-    name_key: string;
-  }[];
-  let n = 0;
-  const ts = new Date().toISOString();
-  for (const line of open) {
-    if (line.item_id === itemId || (line.name_key.length >= 3 && wordsWithin(line.name_key, slipWords))) {
-      db.prepare('UPDATE shopping_items SET checked = 1, checked_at = ?, updated_at = ? WHERE id = ?').run(ts, ts, line.id);
-      n++;
-    }
-  }
-  return n;
-}
-
 export function budgetProStatus() {
   const raw = getSetting('budgetpro_last_result');
   return {
@@ -198,6 +176,7 @@ export function budgetProStatus() {
     lastSync: getSetting('budgetpro_last_sync'),
     lastResult: raw ? (JSON.parse(raw) as SyncResult) : null,
     lastError: getSetting('budgetpro_last_error') || null,
+    pending: pendingCount(),
   };
 }
 

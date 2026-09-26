@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.0 — 2026-09-26
+
+- **Check new slips before they go into the pantry.** BudgetPro slip lines
+  now wait on a review sheet (the banner on the Pantry page): for each line
+  say which item it is — or type a better name ("Swtcorn Whl" → Sweetcorn)
+  — and what one pack holds: a 500 g brick of butter, 1 tin, 24 stock cubes.
+  Untick what isn't for the pantry. Accepting puts the right amount in and
+  ticks the shopping list.
+- **Remembered.** The pack size is kept for that slip spelling and for the
+  item, so the next slip arrives filled in (✓), and a new brand's line
+  linked to Butter assumes Butter's usual brick unless its label says
+  otherwise.
+- Knowing the pack size fixes the price too: "BONNITA BUTTER" at R59.99
+  becomes R0.12 per gram for recipe costs, including slips already synced.
+- AI assistants: `slip_review` and `accept_slip_lines`.
+
 ## 0.7.1 — 2026-09-26
 
 - **Packs count.** BudgetPro slips now put how many you bought in the pantry
