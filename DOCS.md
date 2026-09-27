@@ -27,6 +27,9 @@ open Home Assistant shares the same recipes, plan and lists.
   copy), which gets read exactly like a fetched page.
 - **New** lets you type a recipe in. Ingredients and method are plain text,
   one per line; a line ending in a colon (`For the sauce:`) starts a section.
+- **Photos:** on a phone, **Take photo** in the editor, or the 📷 button on
+  a recipe, opens the camera directly. It works over plain http too. Photos
+  are scaled down to 1600 px before upload, so they stay small.
 - On a recipe, the **servings** stepper scales every amount. Tap ingredients
   to tick them off as you go and tap steps to mark them done. The ☀ button
   keeps the screen from sleeping while you cook — browsers only allow that

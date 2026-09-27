@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.2 — 2026-09-27
+
+- **Take recipe photos with the camera.** The recipe editor has a
+  **Take photo** button next to **Choose photo**, and each recipe has a
+  camera button that saves the photo straight to the recipe, handy right
+  after cooking. On a phone it opens the camera; on a computer it's a
+  file picker. This needs no https.
+- Photos are scaled down to 1600 px before upload, so a 5 MB camera shot
+  goes up as roughly 200 KB.
+
 ## 0.8.1 — 2026-09-27
 
 - **Loose produce is priced properly.** A slip line like "BANANA KG" is a

@@ -1,8 +1,9 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, uploadUrl } from '../api/client';
 import { Recipe, RecipeDraft } from '../types';
 import Icon from './Icon';
+import { shrinkPhoto } from '../utils/photo';
 
 // Ingredients and steps are edited as plain text, one per line — the fastest
 // way to fix up an import or type in Gran's recipe card. A line ending in a
@@ -72,6 +73,14 @@ export default function RecipeEditor({
   const existingImage = recipe && !removeImage ? uploadUrl(recipe.image_path) : null;
   const preview = filePreview ?? imageUrl ?? existingImage;
 
+  async function pickPhoto(e: ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0];
+    e.target.value = '';
+    if (!picked) return;
+    setFile(await shrinkPhoto(picked));
+    setImageUrl(null);
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return setError('Give the recipe a name');
@@ -109,17 +118,14 @@ export default function RecipeEditor({
         <div className="photo-field">
           {preview ? <img src={preview} alt="" /> : <div className="photo-empty"><Icon name="image" size={32} /></div>}
           <div className="photo-actions">
+            {/* capture opens the phone's camera straight away; on a computer it's just a file picker. */}
             <label className="button secondary small">
-              {preview ? 'Change photo' : 'Add photo'}
-              <input
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => {
-                  setFile(e.target.files?.[0] ?? null);
-                  setImageUrl(null);
-                }}
-              />
+              <Icon name="camera" size={16} /> Take photo
+              <input type="file" accept="image/*" capture="environment" hidden onChange={pickPhoto} />
+            </label>
+            <label className="button secondary small">
+              {preview ? 'Change photo' : 'Choose photo'}
+              <input type="file" accept="image/*" hidden onChange={pickPhoto} />
             </label>
             {preview && (
               <button

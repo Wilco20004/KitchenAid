@@ -2358,3 +2358,12 @@ table.mini tr.winner td {
     grid-template-columns: 1fr;
   }
 }
+
+/* The camera button is a <label> round a file input. */
+label.icon-button {
+  cursor: pointer;
+}
+.icon-button.busy {
+  opacity: 0.5;
+  pointer-events: none;
+}

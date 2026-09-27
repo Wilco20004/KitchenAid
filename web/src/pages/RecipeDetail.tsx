@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, uploadUrl } from '../api/client';
 import { Recipe } from '../types';
@@ -8,6 +8,7 @@ import AddToListDialog from '../components/AddToListDialog';
 import AddToPlanDialog from '../components/AddToPlanDialog';
 import CookDialog from '../components/CookDialog';
 import RecipeCostPanel from '../components/RecipeCostPanel';
+import { shrinkPhoto } from '../utils/photo';
 
 // Screen Wake Lock only exists in secure contexts (https or localhost). Over
 // plain http on the LAN it's undefined, so the button explains that instead
@@ -33,6 +34,7 @@ export default function RecipeDetail() {
   const [planned, setPlanned] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [awake, setAwake] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const lock = useRef<any>(null);
 
   useEffect(() => {
@@ -62,6 +64,22 @@ export default function RecipeDetail() {
       setAwake(true);
     } catch (e: any) {
       setError(`Couldn't keep the screen on: ${e.message}`);
+    }
+  }
+
+  // Straight from the camera to the recipe: snap the dish you just made.
+  async function takePhoto(e: ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0];
+    e.target.value = '';
+    if (!picked || !recipe) return;
+    setPhotoBusy(true);
+    setError(null);
+    try {
+      setRecipe(await api.uploadRecipePhoto(recipe.id, await shrinkPhoto(picked)));
+    } catch (err: any) {
+      setError(`Couldn't save the photo: ${err.message}`);
+    } finally {
+      setPhotoBusy(false);
     }
   }
 
@@ -165,6 +183,14 @@ export default function RecipeDetail() {
         >
           <Icon name="sun" />
         </button>
+        <label
+          className={`icon-button bordered${photoBusy ? ' busy' : ''}`}
+          title={image ? 'Take a new photo of it' : 'Take a photo of it'}
+          aria-label="Take photo"
+        >
+          <Icon name="camera" />
+          <input type="file" accept="image/*" capture="environment" hidden disabled={photoBusy} onChange={takePhoto} />
+        </label>
         <span className="toolbar-spacer" />
         <Link to={`/recipes/${recipe.id}/edit`} className="icon-button bordered" aria-label="Edit" title="Edit">
           <Icon name="edit" />
