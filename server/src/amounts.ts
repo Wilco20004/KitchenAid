@@ -36,6 +36,31 @@ export function density(key: string): { value: number; known: boolean } {
   return hit ? { value: hit[1], known: true } : { value: 1, known: false };
 }
 
+// Rough weight of one, as bought (peel and all), for produce a recipe counts
+// ("1 banana") but the shop sells by the kilo.
+const PIECE_GRAMS: [string, number][] = [
+  ['banana', 170],
+  ['sweet potato', 250],
+  ['potato', 200],
+  ['apple', 180],
+  ['pear', 180],
+  ['orange', 180],
+  ['onion', 150],
+  ['tomato', 120],
+  ['lemon', 100],
+  ['lime', 60],
+  ['carrot', 80],
+  ['avocado', 200],
+  ['cucumber', 300],
+  ['butternut', 1200],
+];
+
+/** Only when it's the thing itself: "ripe banana" yes, "tomato paste" no. */
+export function pieceGrams(key: string): number | null {
+  const words = ` ${key}`;
+  return PIECE_GRAMS.find(([word]) => words.endsWith(` ${word}`) || words.endsWith(` ${word}s`) || words.endsWith(` ${word}es`))?.[1] ?? null;
+}
+
 /** What one pack holds, from the label it was bought as: "MIAMI 50G" → 50 g, "EGGS 18S" → 18 items. */
 export interface PackContents {
   amount: number;

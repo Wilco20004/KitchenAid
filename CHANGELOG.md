@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.1 — 2026-09-27
+
+- **Loose produce is priced properly.** A slip line like "BANANA KG" is a
+  bag weighed at the till, but it was priced as if the bag were one
+  banana (R50 each). Such lines no longer set a price by themselves: the
+  review sheet asks what the bag weighed (or how many were in it) and
+  prices it from that, e.g. R25.19/kg. The weight isn't remembered, since
+  the next bag will differ. Prices already stored this way are removed,
+  and the item falls back to one with a size (Bananas 1.2kg).
+- Recipe costs can now count produce bought by the kilo: "1 banana" is
+  about 170 g at the per-kg price. The same goes for apples, onions,
+  potatoes, tomatoes, lemons and other produce.
+
 ## 0.8.0 — 2026-09-26
 
 - **Check new slips before they go into the pantry.** BudgetPro slip lines

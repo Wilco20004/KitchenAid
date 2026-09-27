@@ -4,7 +4,7 @@ import { findItem, ItemRow, wordsWithin } from './items';
 import { search } from './prices/search';
 import { isKitchenware, searchTerm } from './prices/basket';
 import { sameProductForm } from './productForms';
-import { density } from './amounts';
+import { density, pieceGrams } from './amounts';
 
 // What a recipe costs to make, from what you actually paid: each ingredient
 // is matched to an item in the catalogue and its amount multiplied by that
@@ -61,7 +61,12 @@ function costFromUnitPrice(
     if (COUNT_UNITS.has(ing.unit)) return { cost: qty * unitPrice, detail: `${qty} × ${money(unitPrice)} each` };
     return { reason: `bought by the item, recipe measures in ${ing.unit}` };
   }
-  if (!base) return { reason: `priced per ${priceUnit}, recipe counts ${ing.unit ?? 'items'}` };
+  if (!base) {
+    // "1 banana" from bananas bought by the kilo: about what one weighs.
+    const each = priceUnit === 'g' && (ing.unit === null || ing.unit === 'piece') ? pieceGrams(nameKey(ing.name)) : null;
+    if (each) return { cost: qty * each * unitPrice, detail: `${qty} × ~${each} g × ${money(unitPrice * 1000)}/kg`, approx: true };
+    return { reason: `priced per ${priceUnit}, recipe counts ${ing.unit ?? 'items'}` };
+  }
   let amount = base.amount;
   let approx = false;
   if (base.family === 'volume' && priceUnit === 'g') {

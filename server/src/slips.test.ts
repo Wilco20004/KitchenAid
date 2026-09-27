@@ -92,3 +92,45 @@ test('slip review: "1 sachet" keeps the per-gram price the label gives', async (
   assert.deepEqual([p.pantry_quantity, p.pantry_unit, p.price_unit], [4, 'sachet', 'g']);
   assert.ok(Math.abs(p.unit_price! - 7.99 / 50) < 1e-9);
 });
+
+test('loose produce: a bag of unknown weight is priced once its weight is given, and cost per banana follows', async () => {
+  const items = await import('./items');
+  const slips = await import('./slips');
+  const { repairLoosePrices } = await import('./repair');
+  const { pieceGrams } = await import('./amounts');
+
+  assert.equal(slips.looseLine('BANANA KG'), true);
+  assert.equal(slips.looseLine('GARLIC LSE KG'), true);
+  assert.equal(slips.looseLine('Bananas 1.2kg'), false);
+
+  // What 0.8.0 did: R50.38 for the bag became R50.38 "each".
+  const bananas = items.itemForSlipLine('BANANA KG');
+  items.setPackPrice(bananas.id, 39.99, 'Bananas 1.2kg', 'slip', '2026-09-12');
+  items.setPackPrice(bananas.id, 50.38, 'BANANA KG', 'slip', '2026-09-26', { receiptId: 'r5' });
+  assert.equal(items.getItem(bananas.id)!.price_unit, 'item');
+  assert.deepEqual(repairLoosePrices(), [items.getItem(bananas.id)!.name]);
+  let b = items.getItem(bananas.id)!;
+  assert.equal(b.price_unit, 'g');
+  assert.ok(Math.abs(b.unit_price! - 39.99 / 1200) < 1e-9);
+
+  // Next slip: the review asks what the bag weighed.
+  slips.queueSlipLines('r5', 'Checkers', '2026-09-26', [{ raw_name: 'BANANA KG', quantity: 1, amount: 50.38, item_id: bananas.id }]);
+  const line: any = slips.pendingSlips()[0].lines[0];
+  assert.deepEqual(line.pack, { quantity: null, unit: null, from: 'loose' });
+  slips.acceptSlipLines([{ id: line.id, pack_quantity: 2, pack_unit: 'kg' }]);
+  b = items.getItem(bananas.id)!;
+  assert.deepEqual([b.pantry_quantity, b.pantry_unit], [2, 'kg']);
+  assert.ok(Math.abs(b.unit_price! - 50.38 / 2000) < 1e-9);
+  // Not remembered: the next bag weighs something else.
+  assert.equal(slips.guessPack('BANANA KG', bananas.id, 1).quantity, null);
+  // A slip that gives the weight: 1.745 kg.
+  assert.deepEqual(slips.guessPack('BANANA KG', bananas.id, 1.745), { quantity: 1.745, unit: 'kg', from: 'loose' });
+
+  assert.equal(pieceGrams('ripe banana'), 170);
+  assert.equal(pieceGrams('tomato paste'), null);
+  const { recipeCost } = await import('./costing');
+  const { saveRecipe } = await import('./recipes');
+  const id = saveRecipe({ name: 'Banana thing', servings: 1, ingredients: [{ section: null, raw: '1 ripe banana, mashed' }] } as any, null, null);
+  const cost = await recipeCost(id);
+  assert.ok(Math.abs(cost.total - Math.round(170 * (50.38 / 2000) * 100) / 100) < 0.011, JSON.stringify(cost.lines));
+});

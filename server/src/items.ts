@@ -424,9 +424,10 @@ export function setPackPrice(
   packLabel: string,
   source: string,
   at?: string,
-  opts: { store?: string | null; receiptId?: string | null; historyOnly?: boolean } = {}
+  opts: { store?: string | null; receiptId?: string | null; historyOnly?: boolean; perKg?: boolean } = {}
 ) {
-  const { unitPrice, priceUnit } = unitPriceFor(packPrice, packLabel, itemId);
+  // perKg: the price is per kilo of loose produce, whatever the label says.
+  const { unitPrice, priceUnit } = opts.perKg ? { unitPrice: packPrice / 1000, priceUnit: 'g' as const } : unitPriceFor(packPrice, packLabel, itemId);
   const seenAt = at ?? now().slice(0, 10);
   db.prepare(
     `INSERT INTO item_prices (id, item_id, store, pack_price, pack_label, unit_price, price_unit, source, seen_at, receipt_id)

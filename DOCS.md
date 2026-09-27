@@ -189,6 +189,12 @@ a slip is one tap; lines still on a guess are marked *check*. The pack size
 also turns a price like "BONNITA BUTTER R59.99" into a price per gram for
 recipe costs.
 
+Loose produce weighed at the till ("BANANA KG", "GARLIC LSE KG") is
+different: the slip's price is for the whole bag. For those lines give what
+the bag weighed (or how many were in it). That goes into the pantry and
+prices the item per kilo, but it isn't remembered, because the next bag will
+weigh something else. Recipe costs then count "1 banana" as about 170 g.
+
 Set `budgetpro_url` (BudgetPro's own port, e.g. `http://10.1.1.3:8097`) and
 `budgetpro_token` (BudgetPro → Settings → API & AI access) in the add-on's
 **Configuration** tab and restart. Every 30 minutes (or **Check now**) new

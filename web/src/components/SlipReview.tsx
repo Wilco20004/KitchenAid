@@ -21,11 +21,11 @@ const draftOf = (l: SlipLine): Draft => ({
   unit: l.pack.quantity !== null ? l.pack.unit ?? 'piece' : '',
 });
 
-/** "2 × 500 g" → "1 kg"; loose produce by weight is its kilos. */
+/** "2 × 500 g" → "1 kg"; loose produce is what the bag weighed. */
 function total(l: SlipLine, d: Draft): string | null {
   const q = Number(d.qty.replace(',', '.'));
   if (!d.unit || !(q > 0)) return null;
-  const count = l.pack.from === 'loose' && d.unit === 'kg' ? l.quantity / q : l.quantity;
+  const count = l.pack.from === 'loose' ? 1 : l.quantity;
   let amount = Math.round(count * q * 1000) / 1000;
   let unit = d.unit;
   if (unit === 'g' && amount >= 1000) [amount, unit] = [amount / 1000, 'kg'];
@@ -152,7 +152,8 @@ export default function SlipReview({ onClose, onDone }: { onClose: () => void; o
         <>
           <p className="muted small">
             Say what each line is and what <strong>one</strong> pack holds (a 500 g brick, 1 tin, 24 cubes). It's remembered, so next time these are
-            filled in already. Untick anything that isn't for the pantry.
+            filled in already. For loose produce (BANANA KG) give what the bag weighed, or how many, and it's priced from that. Untick anything
+            that isn't for the pantry.
           </p>
           <datalist id="slip-items">
             {catalog.map((i) => (
@@ -194,9 +195,9 @@ export default function SlipReview({ onClose, onDone }: { onClose: () => void; o
                           <input
                             inputMode="decimal"
                             value={d.qty}
-                            onChange={(e) => set(l.id, { qty: e.target.value, unit: d.unit || 'piece' })}
-                            aria-label="One pack holds"
-                            placeholder="—"
+                            onChange={(e) => set(l.id, { qty: e.target.value, unit: d.unit || (l.pack.from === 'loose' ? 'kg' : 'piece') })}
+                            aria-label={l.pack.from === 'loose' ? 'The bag weighed' : 'One pack holds'}
+                            placeholder={l.pack.from === 'loose' ? 'weight' : '—'}
                           />
                           <select value={d.unit} onChange={(e) => set(l.id, { unit: e.target.value, qty: e.target.value ? d.qty || '1' : '' })} aria-label="Unit">
                             <option value="">no amount</option>
@@ -209,6 +210,7 @@ export default function SlipReview({ onClose, onDone }: { onClose: () => void; o
                         </span>
                         <span className="muted tiny slip-total">
                           {t ? `→ ${t}` : '→ at home'}
+                          {l.pack.from === 'loose' && !t ? ' · loose: weight or count?' : ''}
                           {l.pack.from === 'remembered' ? ' ✓' : l.pack.from === 'guess' && d.qty === draftOf(l).qty && d.unit === draftOf(l).unit ? ' · check' : ''}
                         </span>
                       </div>

@@ -1,6 +1,6 @@
 import { db } from './db';
 import { itemForSlipLine, setPackPrice, storeName } from './items';
-import { pendingCount, queueSlipLines } from './slips';
+import { looseLine, pendingCount, queueSlipLines } from './slips';
 import { getBudgetProOptions, getSetting, setSetting } from './settings';
 
 // Pulls grocery slips from the BudgetPro add-on (its REST API, with the API
@@ -147,8 +147,11 @@ async function doSync(): Promise<SyncResult> {
         // What one pack cost (a line can be "2 x"). The item's own "last
         // price" only moves forward in time — slips can arrive out of order.
         const qty = line.quantity > 0 ? line.quantity : 1;
-        if (!seen(priceExt)) {
-          setPackPrice(item.id, line.amount / qty, line.raw_name, 'slip', boughtAt, { store, receiptId: summary.id, historyOnly: true });
+        // Loose produce is priced per kg when the slip gives the weight; a
+        // bag of unknown weight waits for the review sheet to say.
+        const loose = looseLine(line.raw_name);
+        if (!seen(priceExt) && !(loose && Number.isInteger(qty))) {
+          setPackPrice(item.id, line.amount / qty, line.raw_name, 'slip', boughtAt, { store, receiptId: summary.id, historyOnly: true, perKg: loose });
         }
         if (full) queued.push({ raw_name: line.raw_name, quantity: qty, amount: line.amount, item_id: item.id });
       }

@@ -16,6 +16,7 @@ import {
   wordsWithin,
 } from './items';
 import { parsePackSize } from './prices/units';
+import { contentsFrom } from './amounts';
 
 // The slip review sheet: grocery lines from new BudgetPro slips wait here
 // instead of going straight into the pantry, so "2 × BONNITA BUTTER" can be
@@ -46,8 +47,21 @@ export interface PackGuess {
 
 const LOOSE = /(^|\s)(kg|lse|loose)(\s|$)/i;
 
+/**
+ * Loose produce weighed at the till ("BANANA KG", "GARLIC LSE KG"): the
+ * slip's amount is for however much was in the bag, not for one of them.
+ */
+export function looseLine(raw: string): boolean {
+  if (!LOOSE.test(raw)) return false;
+  const size = parsePackSize(raw);
+  return size.each === null || size.perKg;
+}
+
 /** What one pack of this slip line probably is, in pantry terms. */
 export function guessPack(raw: string, itemId: string | null, quantity: number): PackGuess {
+  // Loose produce: a fractional quantity is the weight in kg; a whole one says nothing. The
+  // answer is this bag's weight, so it isn't remembered for next time.
+  if (looseLine(raw)) return Number.isInteger(quantity) ? { quantity: null, unit: null, from: 'loose' } : { quantity, unit: 'kg', from: 'loose' };
   const remembered = rememberedPack(raw);
   if (remembered) return { ...remembered, from: 'remembered' };
   const size = parsePackSize(raw);
@@ -59,8 +73,6 @@ export function guessPack(raw: string, itemId: string | null, quantity: number):
   if (size.count > 1 && size.each === null) return { quantity: size.count, unit: 'piece', from: 'label' };
   const usual = usualPack(itemId);
   if (usual) return { ...usual, from: 'remembered' };
-  // Loose produce: a fractional quantity is the weight in kg; a whole one says nothing.
-  if (LOOSE.test(raw)) return Number.isInteger(quantity) ? { quantity: null, unit: null, from: 'loose' } : { quantity: 1, unit: 'kg', from: 'loose' };
   return { quantity: 1, unit: 'packet', from: 'guess' };
 }
 
@@ -178,6 +190,24 @@ function rememberPack(raw: string, itemId: string, quantity: number | null, unit
   refreshLatestPrice(itemId);
 }
 
+/** A loose line's price once its weight (or count) is known: R50.38 for 2 kg of bananas is R25.19/kg. */
+function priceLoose(line: SlipLineRow, itemId: string, quantity: number, unit: string | null) {
+  const c = contentsFrom(quantity, unit) ?? (unit === null || unit === 'piece' ? { amount: quantity, unit: 'item' as const } : null);
+  if (!c || !(line.amount > 0)) return;
+  const row = db.prepare('SELECT id FROM item_prices WHERE item_id = ? AND receipt_id = ? AND pack_label = ?').get(itemId, line.receipt_id, line.raw_name) as
+    | { id: string }
+    | undefined;
+  if (row) {
+    db.prepare('UPDATE item_prices SET pack_price = ?, unit_price = ?, price_unit = ? WHERE id = ?').run(line.amount, line.amount / c.amount, c.unit, row.id);
+  } else {
+    db.prepare(
+      `INSERT INTO item_prices (id, item_id, store, pack_price, pack_label, unit_price, price_unit, source, seen_at, receipt_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'slip', ?, ?)`
+    ).run(uuid(), itemId, line.store, line.amount, line.raw_name, line.amount / c.amount, c.unit, line.bought_at, line.receipt_id);
+  }
+  refreshLatestPrice(itemId);
+}
+
 function tickOffShopping(item: ItemRow, raw: string): number {
   const open = db.prepare('SELECT id, item_id, name_key FROM shopping_items WHERE checked = 0').all() as {
     id: string;
@@ -219,10 +249,11 @@ export const acceptSlipLines = db.transaction((inputs: AcceptInput[]) => {
     const packQty = input.pack_quantity !== undefined ? input.pack_quantity : guess.quantity;
     const packUnit = input.pack_unit !== undefined ? input.pack_unit || null : guess.unit;
     if (packQty !== null && !(packQty > 0)) throw new Error(`The pack size for “${line.raw_name}” must be more than 0`);
-    if (packQty !== null) rememberPack(line.raw_name, item.id, packQty, packUnit);
-    // Loose produce by weight: the slip's quantity is the kilos; otherwise it's the number of packs.
-    const count = guess.from === 'loose' && packQty !== null && packUnit === 'kg' ? line.quantity / packQty : line.quantity;
-    const total = packQty !== null ? Math.round(count * packQty * 1000) / 1000 : null;
+    // Loose produce: the answer is what this bag weighed (or how many were in it), which prices it.
+    const loose = guess.from === 'loose';
+    if (packQty !== null && !loose) rememberPack(line.raw_name, item.id, packQty, packUnit);
+    if (packQty !== null && loose) priceLoose(line, item.id, packQty, packUnit);
+    const total = packQty !== null ? Math.round((loose ? 1 : line.quantity) * packQty * 1000) / 1000 : null;
     const updated = addToPantry({ itemId: item.id, source: 'budgetpro', bought_at: line.bought_at, quantity: total, unit: total !== null ? packUnit : null, pack_label: line.raw_name });
     db.prepare("UPDATE slip_lines SET status = 'added', item_id = ?, done_at = ? WHERE id = ?").run(item.id, new Date().toISOString(), line.id);
     results.push({

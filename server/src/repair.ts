@@ -3,6 +3,7 @@ import { deleteItem, itemForSlipLine, refreshLatestPrice } from './items';
 import { differentProduct } from './productForms';
 import { MAX_PACK_PRICE } from './budgetpro';
 import { getSetting, setSetting } from './settings';
+import { looseLine } from './slips';
 
 // One-off clean-ups of data earlier versions got wrong. Each runs once per
 // install (remembered in settings) and reports what it changed in the log.
@@ -81,7 +82,35 @@ export const repairSlipData = db.transaction((): RepairReport => {
   return report;
 });
 
+/**
+ * 0.8.1: loose produce off a slip ("BANANA KG") was priced as if the whole
+ * bag were one banana. Those prices go; the item falls back to one with a
+ * size (Bananas 1.2kg), or waits for the next slip's weight.
+ */
+export const repairLoosePrices = db.transaction((): string[] => {
+  const rows = db
+    .prepare("SELECT p.id, p.item_id, p.pack_label, i.name FROM item_prices p JOIN items i ON i.id = p.item_id WHERE p.source = 'slip' AND p.price_unit = 'item'")
+    .all() as { id: string; item_id: string; pack_label: string | null; name: string }[];
+  const touched = new Map<string, string>();
+  for (const r of rows) {
+    if (!r.pack_label || !looseLine(r.pack_label)) continue;
+    db.prepare('DELETE FROM item_prices WHERE id = ?').run(r.id);
+    touched.set(r.item_id, r.name);
+  }
+  for (const id of touched.keys()) refreshLatestPrice(id);
+  return [...touched.values()];
+});
+
 export function runRepairs() {
+  if (!getSetting('repair_loose_prices_v1')) {
+    try {
+      const names = repairLoosePrices();
+      setSetting('repair_loose_prices_v1', new Date().toISOString());
+      if (names.length) console.log(`[repair] dropped loose-produce slip prices counted as one each: ${names.join(', ')}`);
+    } catch (e: any) {
+      console.warn(`[repair] loose price clean-up failed: ${e.message}`);
+    }
+  }
   if (getSetting('repair_slip_data_v1')) return;
   try {
     const r = repairSlipData();
