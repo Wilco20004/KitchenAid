@@ -5,6 +5,7 @@ import { search } from './prices/search';
 import { isKitchenware, searchTerm } from './prices/basket';
 import { sameProductForm } from './productForms';
 import { density, pieceGrams } from './amounts';
+import { composeLine, itemOfIngredient } from './recipes';
 
 // What a recipe costs to make, from what you actually paid: each ingredient
 // is matched to an item in the catalogue and its amount multiplied by that
@@ -27,6 +28,8 @@ export interface CostLine {
 interface Ingredient {
   raw: string;
   name: string;
+  item_id: string | null;
+  no_link: number;
   quantity: number | null;
   quantity_max: number | null;
   unit: string | null;
@@ -111,9 +114,11 @@ export async function recipeCost(recipeId: string, servings?: number | null, opt
   const recipe = db.prepare('SELECT name, servings FROM recipes WHERE id = ?').get(recipeId) as { name: string; servings: number | null } | undefined;
   if (!recipe) throw new Error('Recipe not found');
   const factor = recipe.servings && servings ? servings / recipe.servings : 1;
-  const ingredients = db
-    .prepare('SELECT raw, name, quantity, quantity_max, unit FROM recipe_ingredients WHERE recipe_id = ? ORDER BY position')
-    .all(recipeId) as Ingredient[];
+  const ingredients = (db
+    .prepare('SELECT raw, name, quantity, quantity_max, unit, item_id, no_link FROM recipe_ingredients WHERE recipe_id = ? ORDER BY position')
+    .all(recipeId) as Ingredient[])
+    // Shown as the tidy line ("1¾ cup plain flour"), not the imported text with its footnotes.
+    .map((i) => ({ ...i, raw: composeLine({ ...i, note: null }) }));
 
   const lines: CostLine[] = [];
   for (const ing of ingredients) {
@@ -123,7 +128,8 @@ export async function recipeCost(recipeId: string, servings?: number | null, opt
     }
     // A range ("2–3 cloves") is costed at its midpoint.
     const qty = (ing.quantity_max !== null ? (ing.quantity + ing.quantity_max) / 2 : ing.quantity) * factor;
-    const item = pricedItemFor(ing.name);
+    // A linked ingredient is costed from its item only — no guessing by name.
+    const item = itemOfIngredient(ing, pricedItemFor);
     if (item?.unit_price != null && item.price_unit) {
       const c = costFromUnitPrice(ing, qty, item.unit_price, item.price_unit);
       if ('cost' in c) {
@@ -135,7 +141,7 @@ export async function recipeCost(recipeId: string, servings?: number | null, opt
         continue;
       }
     }
-    const estimate = opts.storeFallback ? await storeEstimate(ing, qty) : null;
+    const estimate = opts.storeFallback ? await storeEstimate(item && ing.item_id ? { ...ing, name: item.name } : ing, qty) : null;
     lines.push(estimate ?? { raw: ing.raw, item: item?.name ?? null, cost: null, basis: null, detail: 'no price yet' });
   }
 

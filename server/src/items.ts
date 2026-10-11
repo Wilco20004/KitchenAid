@@ -4,7 +4,8 @@ import { addAmounts, nameKey, SIZE_WORDS } from './ingredients';
 import { guessCategoryName } from './categorize';
 import { parsePackSize } from './prices/units';
 import { differentProduct } from './productForms';
-import { addPantryAmounts, contentsFrom, PackContents, packContents } from './amounts';
+import { addPantryAmounts, contentsFrom, PACK_UNITS, PackContents, packContents } from './amounts';
+import { makeRef, renameRef, sanitizeRef } from './steps';
 
 // The item catalogue (see the items / item_aliases tables in db.ts): finding
 // "the same thing" across names, barcodes and slip spellings, the pantry
@@ -33,6 +34,12 @@ export interface ItemRow {
   price_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Short name for amounts in recipe steps: {{flour}}. */
+  ref: string | null;
+  /** What it comes in (bottle) and what one holds (750 ml), set on its sheet. */
+  container: string | null;
+  size_quantity: number | null;
+  size_unit: string | null;
 }
 
 export type AliasKind = 'barcode' | 'name' | 'slip' | 'store';
@@ -154,6 +161,12 @@ export const mergeItems = db.transaction((fromId: string, intoId: string): ItemR
   if (!from || !into) throw new Error('Item not found');
   db.prepare('UPDATE OR REPLACE item_aliases SET item_id = ? WHERE item_id = ?').run(intoId, fromId);
   db.prepare('UPDATE shopping_items SET item_id = ?, name_key = ? WHERE item_id = ? OR name_key = ?').run(intoId, into.name_key, fromId, from.name_key);
+  // Recipes follow, and their steps switch to the kept item's short name.
+  if (from.ref) {
+    db.prepare('UPDATE items SET ref = NULL WHERE id = ?').run(fromId);
+    renameInSteps(fromId, from.ref, ensureItemRef(intoId)!);
+  }
+  db.prepare('UPDATE recipe_ingredients SET item_id = ? WHERE item_id = ?').run(intoId, fromId);
   // The newer price and the pantry state win, whichever side they're on.
   const newerPrice = (from.price_at ?? '') > (into.price_at ?? '');
   db.prepare(
@@ -194,6 +207,50 @@ export const mergeItems = db.transaction((fromId: string, intoId: string): ItemR
     now()
   );
   return getItem(intoId)!;
+});
+
+// ---------- short names for recipe steps ----------
+
+function takenRefs(exceptId?: string): Set<string> {
+  return new Set(
+    (db.prepare('SELECT ref FROM items WHERE ref IS NOT NULL AND id != ?').all(exceptId ?? '') as { ref: string }[]).map((r) => r.ref)
+  );
+}
+
+/** The item's short name, made up from its name if it has none yet (Cake Flour → flour). */
+export function ensureItemRef(itemId: string): string | null {
+  const item = getItem(itemId);
+  if (!item) return null;
+  if (item.ref) return item.ref;
+  const ref = makeRef(item.name, takenRefs(itemId));
+  db.prepare('UPDATE items SET ref = ? WHERE id = ?').run(ref, itemId);
+  return ref;
+}
+
+/** Steps of recipes using this item: {{from…}} → {{to…}}. */
+function renameInSteps(itemId: string, from: string, to: string) {
+  const steps = db
+    .prepare(
+      `SELECT id, text FROM recipe_steps WHERE text LIKE '%{{%' AND recipe_id IN (SELECT recipe_id FROM recipe_ingredients WHERE item_id = ?)`
+    )
+    .all(itemId) as { id: string; text: string }[];
+  for (const s of steps) {
+    const text = renameRef(s.text, from, to);
+    if (text !== s.text) db.prepare('UPDATE recipe_steps SET text = ? WHERE id = ?').run(text, s.id);
+  }
+}
+
+/** Give an item a new short name; recipe steps using the old one follow. Throws if another item has it. */
+export const setItemRef = db.transaction((itemId: string, wanted: string): ItemRow => {
+  const item = getItem(itemId);
+  if (!item) throw new Error('Item not found');
+  const ref = sanitizeRef(wanted);
+  if (!ref) throw new Error('A short name needs letters or digits');
+  const clash = db.prepare('SELECT name FROM items WHERE ref = ? AND id != ?').get(ref, itemId) as { name: string } | undefined;
+  if (clash) throw Object.assign(new Error(`“${clash.name}” already uses {{${ref}}}`), { status: 409 });
+  if (item.ref && item.ref !== ref) renameInSteps(itemId, item.ref, ref);
+  db.prepare('UPDATE items SET ref = ?, updated_at = ? WHERE id = ?').run(ref, now(), itemId);
+  return getItem(itemId)!;
 });
 
 /** Delete an item with its barcodes, names and prices; shopping lines keep their text. */
@@ -250,7 +307,7 @@ export function addToPantry(input: {
   // Buying more of something already at home: add up when the units allow,
   // otherwise the newest amount wins.
   const incoming = { quantity: input.quantity ?? null, unit: input.unit ?? null };
-  const pack = packOf(input.pack_label, item.id) ?? packOf(item.pack_label, item.id);
+  const pack = packOf(input.pack_label, item.id) ?? pantryPack(item);
   const amount = item.in_pantry
     ? addPantryAmounts({ quantity: item.pantry_quantity, unit: item.pantry_unit }, incoming, item.name, pack) ??
       addAmounts({ quantity: item.pantry_quantity, unit: item.pantry_unit }, incoming) ??
@@ -361,6 +418,9 @@ export function rememberedPack(label: string | null | undefined): { quantity: nu
  */
 export function usualPack(itemId: string | null | undefined): { quantity: number; unit: string | null } | null {
   if (!itemId) return null;
+  // The size set on the item wins over what slips have taught.
+  const item = getItem(itemId);
+  if (item?.size_quantity != null) return { quantity: item.size_quantity, unit: item.size_unit };
   return (
     (db
       .prepare(
@@ -379,6 +439,55 @@ function knownPack(label: string | null | undefined, itemId?: string | null) {
 export function packOf(label: string | null | undefined, itemId?: string | null): PackContents | null {
   const r = knownPack(label, itemId);
   return (r && contentsFrom(r.quantity, r.unit)) ?? packContents(label);
+}
+
+/** What one of the item's packs at home holds: the size set on the item, else the pack it was last bought as. */
+export function pantryPack(item: ItemRow): PackContents | null {
+  return (item.size_quantity != null ? contentsFrom(item.size_quantity, item.size_unit) : null) ?? packOf(item.pack_label, item.id);
+}
+
+/**
+ * How the item comes: a container (bottle) holding size (750 ml). What's at
+ * home counted in the old container ("1 packet" of juice) is recounted in
+ * the new one ("1 bottle").
+ */
+export function setItemSize(
+  itemId: string,
+  input: { container?: string | null; size_quantity?: number | null; size_unit?: string | null }
+): ItemRow {
+  const item = getItem(itemId);
+  if (!item) throw new Error('Item not found');
+  const container = input.container === undefined ? item.container : input.container?.trim().toLowerCase() || null;
+  if (container && !PACK_UNITS.has(container)) throw new Error(`"${container}" isn't a container KitchenAid knows`);
+  let quantity = input.size_quantity === undefined ? item.size_quantity : input.size_quantity;
+  let unit = input.size_unit === undefined ? item.size_unit : input.size_unit || null;
+  if (quantity != null && !(quantity > 0)) quantity = null;
+  if (quantity == null) unit = null;
+  if (unit && !['g', 'kg', 'ml', 'l', 'piece'].includes(unit)) throw new Error('Size is in g, kg, ml, l or pieces');
+  const recount = container && item.in_pantry && item.pantry_unit && PACK_UNITS.has(item.pantry_unit) && item.pantry_unit !== container;
+  db.prepare('UPDATE items SET container = ?, size_quantity = ?, size_unit = ?, pantry_unit = ?, updated_at = ? WHERE id = ?').run(
+    container,
+    quantity,
+    unit,
+    recount ? container : item.pantry_unit,
+    now(),
+    itemId
+  );
+  return getItem(itemId)!;
+}
+
+/** Set exactly what's at home ("1 bottle", "500 ml", or no amount) — fixing a wrong count. Puts it in the pantry if it wasn't. */
+export function setPantryAmount(itemId: string, amount: { quantity: number | null; unit: string | null }): ItemRow {
+  const item = getItem(itemId);
+  if (!item) throw new Error('Item not found');
+  if (!item.in_pantry) addToPantry({ itemId, quantity: amount.quantity, unit: amount.unit });
+  db.prepare('UPDATE items SET pantry_quantity = ?, pantry_unit = ?, updated_at = ? WHERE id = ?').run(
+    amount.quantity !== null && amount.quantity > 0 ? amount.quantity : null,
+    amount.unit || null,
+    now(),
+    itemId
+  );
+  return getItem(itemId)!;
 }
 
 /** Unit price from a pack, preferring a remembered pack size over what the label says. */

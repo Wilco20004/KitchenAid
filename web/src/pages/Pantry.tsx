@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { BarcodeResult, BudgetProStatus, Category, Item } from '../types';
-import { daysUntil, expiryLabel, formatAmount, unitPriceLabel } from '../utils/format';
+import { daysUntil, expiryLabel, pantryAmount, unitPriceLabel } from '../utils/format';
 import Icon from '../components/Icon';
 import Modal from '../components/Modal';
 import ItemSheet from '../components/ItemSheet';
@@ -184,7 +184,7 @@ export default function Pantry() {
           <h2>{view === 'home' ? 'Nothing in the pantry yet' : 'No items'}</h2>
           <p className="muted">
             {view === 'home'
-              ? 'Things arrive here when you tick them off the shopping list and clear it, from BudgetPro slips, or when you add them above.'
+              ? 'Things arrive here from BudgetPro slips (checked on the review sheet), or when you add them above.'
               : 'Items are created as you add things to lists, the pantry, or scan barcodes.'}
           </p>
         </div>
@@ -205,7 +205,7 @@ export default function Pantry() {
                       <span>
                         <span className="shop-name">{i.name}</span>
                         {(i.pantry_quantity !== null || i.pantry_unit) && i.in_pantry ? (
-                          <span className="shop-amount">{formatAmount(i.pantry_quantity, i.pantry_unit)}</span>
+                          <span className="shop-amount">{pantryAmount(i)}</span>
                         ) : null}
                       </span>
                       <span className="muted tiny">

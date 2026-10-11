@@ -2,7 +2,7 @@ import type React from 'react';
 import { Ingredient } from '../types';
 
 const FRACTIONS: [number, string][] = [
-  [1 / 8, '⅛'], [1 / 4, '¼'], [1 / 3, '⅓'], [1 / 2, '½'], [2 / 3, '⅔'], [3 / 4, '¾'],
+  [1 / 8, '⅛'], [1 / 4, '¼'], [1 / 3, '⅓'], [3 / 8, '⅜'], [1 / 2, '½'], [5 / 8, '⅝'], [2 / 3, '⅔'], [3 / 4, '¾'], [7 / 8, '⅞'],
 ];
 
 /** 1.5 → "1½" for cups and counts; grams and millilitres stay decimal. */
@@ -32,13 +32,21 @@ export function formatAmount(quantity: number | null, unit: string | null): stri
   return [formatQuantity(quantity, unit), unitLabel(unit, quantity)].filter(Boolean).join(' ');
 }
 
-/** The ingredient line at a different number of servings. Unscaled lines show exactly as written. */
-export function scaledLine(ing: Ingredient, factor: number): string {
-  if (Math.abs(factor - 1) < 0.001 || ing.quantity === null) return ing.raw;
+/** An ingredient's amount at `factor` × the recipe: "1¾ cups", "2–3", or "" when it has none. */
+export function scaledAmount(ing: Pick<Ingredient, 'quantity' | 'quantity_max' | 'unit'>, factor: number): string {
+  if (ing.quantity === null) return ing.unit ?? '';
   const q = ing.quantity * factor;
-  const max = ing.quantity_max !== null ? `–${formatQuantity(ing.quantity_max * factor, ing.unit)}` : '';
-  const unit = unitLabel(ing.unit, ing.quantity_max !== null ? ing.quantity_max * factor : q);
-  return `${formatQuantity(q, ing.unit)}${max}${unit ? ` ${unit}` : ''} ${ing.name}${ing.note ? `, ${ing.note}` : ''}`;
+  const max = ing.quantity_max !== null ? ing.quantity_max * factor : null;
+  const unit = unitLabel(ing.unit, max ?? q);
+  return `${formatQuantity(q, ing.unit)}${max !== null ? `–${formatQuantity(max, ing.unit)}` : ''}${unit ? ` ${unit}` : ''}`;
+}
+
+/** What's at home, with what one pack holds when it's counted in packs: "2 bottles of 750 ml". */
+export function pantryAmount(i: { pantry_quantity: number | null; pantry_unit: string | null; container?: string | null; size_quantity?: number | null; size_unit?: string | null }): string {
+  const base = formatAmount(i.pantry_quantity, i.pantry_unit);
+  const counted = i.pantry_unit && i.pantry_unit === i.container;
+  if (!counted || i.size_quantity == null) return base;
+  return `${base} of ${formatAmount(i.size_quantity, i.size_unit === 'piece' ? null : i.size_unit ?? null)}${i.size_unit === 'piece' ? ' pieces' : ''}`;
 }
 
 export function formatMinutes(minutes: number | null): string | null {

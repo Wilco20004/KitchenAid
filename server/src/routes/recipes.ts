@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import { v4 as uuid } from 'uuid';
 import { db, UPLOADS_DIR } from '../db';
-import { getTags, loadRecipe, RecipeRow, saveRecipe } from '../recipes';
+import { getTags, ingredientFields, itemCatalogue, loadRecipe, RecipeRow, saveRecipe, setIngredientLinks, suggestItemFor } from '../recipes';
 import { deleteUpload, downloadImage } from '../import/fetch';
 import { previewIngredients } from '../shopping';
 import { nameKey } from '../ingredients';
@@ -47,15 +47,20 @@ export function listRecipes(filter: { q?: string; tag?: string; favorite?: boole
   // How much of each recipe is already in the cupboard (pantry or staples),
   // for "what can I make tonight?".
   const have = [...pantryKeys(), ...(db.prepare('SELECT name_key FROM staples').all() as { name_key: string }[]).map((s) => s.name_key)];
-  const ingredientsOf = db.prepare('SELECT name FROM recipe_ingredients WHERE recipe_id = ?');
+  const ingredientsOf = db.prepare(
+    'SELECT ri.name, i.name_key AS item_key, i.in_pantry AS item_in_pantry FROM recipe_ingredients ri LEFT JOIN items i ON i.id = ri.item_id WHERE ri.recipe_id = ?'
+  );
+  const staples = new Set((db.prepare('SELECT name_key FROM staples').all() as { name_key: string }[]).map((s) => s.name_key));
   return rows.map((r) => {
-      const keys = (ingredientsOf.all(r.id) as { name: string }[]).map((i) => nameKey(i.name));
+      const ings = ingredientsOf.all(r.id) as { name: string; item_key: string | null; item_in_pantry: number | null }[];
       return {
         ...r,
         favorite: Boolean(r.favorite),
         tags: getTags(r.id),
-        ingredient_count: keys.length,
-        have_count: keys.filter((k) => pantryCovers(k, have)).length,
+        ingredient_count: ings.length,
+        have_count: ings.filter((i) =>
+          i.item_key ? Boolean(i.item_in_pantry) || staples.has(i.item_key) : pantryCovers(nameKey(i.name), have)
+        ).length,
       };
     });
 }
@@ -68,6 +73,22 @@ recipesRouter.get('/', (req, res) => {
       tag: typeof req.query.tag === 'string' ? req.query.tag : undefined,
       favorite: req.query.favorite === '1',
     })
+  );
+});
+
+// POST /api/recipes/parse-ingredients { lines: [{ section, raw }] } — pasted lines as editor rows,
+// each with a suggested item to link (nothing is saved).
+recipesRouter.post('/parse-ingredients', (req, res) => {
+  const lines = Array.isArray(req.body?.lines) ? req.body.lines : null;
+  if (!lines) return res.status(400).json({ error: 'lines are required' });
+  const catalogue = itemCatalogue();
+  res.json(
+    lines
+      .filter((l: any) => typeof l?.raw === 'string' && l.raw.trim())
+      .map((l: any) => {
+        const f = ingredientFields({ section: null, raw: l.raw });
+        return { section: typeof l.section === 'string' && l.section.trim() ? l.section.trim() : null, ...f, suggested: suggestItemFor(f.name, catalogue) };
+      })
   );
 });
 
@@ -96,6 +117,19 @@ recipesRouter.put('/:id', async (req, res) => {
       db.prepare('UPDATE recipes SET image_path = ? WHERE id = ?').run(image, req.params.id);
       deleteUpload(existing.image_path);
     }
+  }
+  res.json(loadRecipe(req.params.id));
+});
+
+// PUT /api/recipes/:id/links { links: [{ id, item_id | item_name | no_link }] } — confirm suggested links
+recipesRouter.put('/:id/links', (req, res) => {
+  const links = Array.isArray(req.body?.links) ? req.body.links.filter((l: any) => typeof l?.id === 'string') : null;
+  if (!links) return res.status(400).json({ error: 'links are required' });
+  if (!loadRecipe(req.params.id)) return res.status(404).json({ error: 'Recipe not found' });
+  try {
+    setIngredientLinks(req.params.id, links);
+  } catch (e: any) {
+    return res.status(400).json({ error: e.message });
   }
   res.json(loadRecipe(req.params.id));
 });

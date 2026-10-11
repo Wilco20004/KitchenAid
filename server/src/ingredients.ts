@@ -49,6 +49,11 @@ const UNIT_ALIASES: Record<string, string[]> = {
   sachet: ['sachet', 'sachets'],
   box: ['box', 'boxes'],
   tub: ['tub', 'tubs'],
+  carton: ['carton', 'cartons'],
+  tray: ['tray', 'trays'],
+  punnet: ['punnet', 'punnets'],
+  pouch: ['pouch', 'pouches'],
+  tube: ['tube', 'tubes'],
   bottle: ['bottle', 'bottles'],
   bag: ['bag', 'bags'],
   knob: ['knob', 'knobs'],
@@ -100,6 +105,66 @@ function matchUnit(rest: string): { unit: string; length: number } | null {
   return null;
 }
 
+/** A note as a person would write it: "(, sifted (Note 3))" → "sifted, Note 3". */
+function tidyNote(text: string): string {
+  return text
+    .replace(/[()]/g, ', ')
+    .replace(/\s*,\s*/g, ', ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s,;]+|[\s,;]+$/g, '')
+    .replace(/(, )+/g, ', ');
+}
+
+/**
+ * Takes every bracketed part out of a line, nested ones included: recipe
+ * sites write "plain flour (all-purpose flour) ((Note 1))", which a simple
+ * regex leaves half-eaten ("plain flour )"). An unclosed "(" runs to the end.
+ */
+export function splitParentheses(s: string): { rest: string; notes: string[] } {
+  const notes: string[] = [];
+  let rest = '';
+  let depth = 0;
+  let group = '';
+  for (const ch of s) {
+    if (ch === '(') {
+      if (depth > 0) group += ch;
+      depth++;
+    } else if (ch === ')' && depth > 0) {
+      depth--;
+      if (depth === 0) {
+        const note = tidyNote(group);
+        if (note) notes.push(note);
+        group = '';
+        rest += ' ';
+      } else group += ch;
+    } else if (ch === ')') {
+      rest += ' '; // a stray closer
+    } else if (depth > 0) group += ch;
+    else rest += ch;
+  }
+  if (depth > 0 && tidyNote(group)) notes.push(tidyNote(group));
+  return { rest, notes };
+}
+
+/** "1 3/4", "½", "2-3" → quantity (and the top of a range); nulls when there's no number. */
+export function parseQuantity(text: string): { quantity: number | null; quantity_max: number | null } {
+  const s = normalizeLine(text);
+  const q = s.match(QTY_RE);
+  if (!q || q[0].length !== s.length) return { quantity: null, quantity_max: null };
+  const quantity = toNumber(q[1]);
+  const max = q[2] ? toNumber(q[2]) : null;
+  return { quantity: Number.isNaN(quantity) ? null : quantity, quantity_max: max === null || Number.isNaN(max) ? null : max };
+}
+
+/** "Cups", "tablespoon", "T" → the canonical unit; anything unknown is kept as typed (lower case). */
+export function normalizeUnit(text: string | null | undefined): string | null {
+  const s = (text ?? '').trim();
+  if (!s) return null;
+  const u = matchUnit(s);
+  if (u && u.length >= s.length) return u.unit === 'dozen' ? null : u.unit;
+  return s.toLowerCase();
+}
+
 export function parseIngredient(line: string): ParsedIngredient {
   let s = normalizeLine(line);
   let quantity: number | null = null;
@@ -130,12 +195,9 @@ export function parseIngredient(line: string): ParsedIngredient {
   s = s.replace(/^of\s+/i, '');
 
   // Parentheticals and anything after the first comma are preparation notes.
-  const notes: string[] = [];
-  s = s.replace(/\(([^)]*)\)/g, (_m, inner) => {
-    if (inner.trim()) notes.push(`(${inner.trim()})`);
-    return ' ';
-  });
-  s = s.replace(/\s+/g, ' ').trim();
+  const split = splitParentheses(s);
+  const notes = split.notes;
+  s = split.rest.replace(/\s+/g, ' ').trim();
   const comma = s.indexOf(',');
   if (comma > 0) {
     notes.push(s.slice(comma + 1).trim());
@@ -224,7 +286,7 @@ export function addAmounts(a: Amount, b: Amount): Amount | null {
 }
 
 const FRACTIONS: [number, string][] = [
-  [1 / 8, '⅛'], [1 / 4, '¼'], [1 / 3, '⅓'], [1 / 2, '½'], [2 / 3, '⅔'], [3 / 4, '¾'],
+  [1 / 8, '⅛'], [1 / 4, '¼'], [1 / 3, '⅓'], [3 / 8, '⅜'], [1 / 2, '½'], [5 / 8, '⅝'], [2 / 3, '⅔'], [3 / 4, '¾'], [7 / 8, '⅞'],
 ];
 
 export function formatQuantity(q: number, unit: string | null): string {

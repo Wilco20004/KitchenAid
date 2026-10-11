@@ -2,7 +2,9 @@ import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, uploadUrl } from '../api/client';
 import { Recipe } from '../types';
-import { bySection, formatMinutes, scaledLine } from '../utils/format';
+import { bySection, formatMinutes, scaledAmount } from '../utils/format';
+import { stepParts } from '../utils/steps';
+import LinkReviewDialog from '../components/LinkReviewDialog';
 import Icon from '../components/Icon';
 import AddToListDialog from '../components/AddToListDialog';
 import AddToPlanDialog from '../components/AddToPlanDialog';
@@ -30,7 +32,7 @@ export default function RecipeDetail() {
   const [servings, setServings] = useState(1);
   const [haveIngredients, setHaveIngredients] = useState<Set<string>>(new Set());
   const [doneSteps, setDoneSteps] = useState<Set<string>>(new Set());
-  const [dialog, setDialog] = useState<'list' | 'plan' | 'cook' | null>(null);
+  const [dialog, setDialog] = useState<'list' | 'plan' | 'cook' | 'links' | null>(null);
   const [planned, setPlanned] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [awake, setAwake] = useState(false);
@@ -107,6 +109,7 @@ export default function RecipeDetail() {
   if (!recipe) return <p className="muted">Loading…</p>;
 
   const factor = recipe.servings ? servings / recipe.servings : 1;
+  const unlinked = recipe.ingredients.filter((i) => !i.item_id && !i.no_link);
   const image = uploadUrl(recipe.image_path);
   const times = [
     ['Prep', recipe.prep_minutes],
@@ -218,8 +221,13 @@ export default function RecipeDetail() {
             </div>
           </div>
           {!recipe.servings && <p className="muted tiny">Set the recipe's servings (Edit) to scale amounts.</p>}
-          <RecipeCostPanel recipeId={recipe.id} servings={servings} />
+          <RecipeCostPanel key={recipe.updated_at} recipeId={recipe.id} servings={servings} />
           {recipe.ingredients.length === 0 && <p className="muted">No ingredients listed.</p>}
+          {unlinked.length > 0 && (
+            <button type="button" className="link-nudge" onClick={() => setDialog('links')}>
+              <Icon name="link" size={14} /> {unlinked.length} not linked to an item{unlinked.some((i) => i.suggested) ? ' — check suggestions' : ''}
+            </button>
+          )}
           {bySection(recipe.ingredients).map((g, gi) => (
             <div key={gi}>
               {g.section && <h3>{g.section}</h3>}
@@ -229,7 +237,11 @@ export default function RecipeDetail() {
                     <span className="tick" aria-hidden="true">
                       {haveIngredients.has(ing.id) && <Icon name="check" size={14} />}
                     </span>
-                    <span>{recipe.servings ? scaledLine(ing, factor) : ing.raw}</span>
+                    <span>
+                      {scaledAmount(ing, recipe.servings ? factor : 1) && <strong className="ing-qty">{scaledAmount(ing, recipe.servings ? factor : 1)} </strong>}
+                      {ing.name}
+                      {ing.note && <span className="ing-note-text">{ing.note}</span>}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -246,7 +258,19 @@ export default function RecipeDetail() {
               <ol className="step-list">
                 {g.rows.map((s) => (
                   <li key={s.id} className={doneSteps.has(s.id) ? 'done' : ''} onClick={() => toggle(setDoneSteps, s.id)}>
-                    <p>{s.text}</p>
+                    <p>
+                      {stepParts(s.text, recipe.ingredients, factor).map((p, k) =>
+                        'value' in p ? (
+                          <mark key={k} className="amount">
+                            {p.value}
+                          </mark>
+                        ) : 'missing' in p ? (
+                          <span key={k}>{p.missing}</span>
+                        ) : (
+                          <span key={k}>{p.text}</span>
+                        )
+                      )}
+                    </p>
                   </li>
                 ))}
               </ol>
@@ -264,6 +288,7 @@ export default function RecipeDetail() {
       {dialog === 'list' && (
         <AddToListDialog title={`Shopping for ${servings} serving${servings === 1 ? '' : 's'}`} load={loadPreview} onClose={() => setDialog(null)} />
       )}
+      {dialog === 'links' && <LinkReviewDialog recipe={recipe} onClose={() => setDialog(null)} onSaved={setRecipe} />}
       {dialog === 'cook' && <CookDialog recipeId={recipe.id} servings={recipe.servings ? servings : null} onClose={() => setDialog(null)} />}
       {dialog === 'plan' && (
         <AddToPlanDialog

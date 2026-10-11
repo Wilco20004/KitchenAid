@@ -110,11 +110,16 @@ export default function ShoppingList() {
     }
   }
 
-  // Ticked means bought, so clearing moves them into the pantry.
+  // Just empties the trolley: the pantry fills from BudgetPro slips (with
+  // real amounts) or by hand, never from here.
   async function clearDone() {
-    if (!listId) return;
-    const r = await api.clearChecked(listId);
-    setNotice(`${r.toPantry} item${r.toPantry === 1 ? '' : 's'} moved to the pantry.`);
+    if (!listId || !confirm(`Clear ${done.length} item${done.length === 1 ? '' : 's'} from the trolley?`)) return;
+    try {
+      const r = await api.clearChecked(listId);
+      setNotice(`Trolley cleared: ${r.removed} item${r.removed === 1 ? '' : 's'}.`);
+    } catch (err: any) {
+      setError(err.message);
+    }
     reload();
   }
 
@@ -149,8 +154,8 @@ export default function ShoppingList() {
             </button>
           )}
           {done.length > 0 && (
-            <button type="button" className="button ghost small" onClick={clearDone} title="Ticked items go to the pantry">
-              Clear {done.length} ticked
+            <button type="button" className="button ghost small" onClick={clearDone}>
+              Clear trolley ({done.length})
             </button>
           )}
         </div>
@@ -233,6 +238,9 @@ export default function ShoppingList() {
             <section className="aisle done-section">
               <button type="button" className="done-toggle" onClick={() => setShowDone((s) => !s)}>
                 <Icon name={showDone ? 'down' : 'right'} size={16} /> In the trolley <span className="count">{done.length}</span>
+              </button>
+              <button type="button" className="button ghost small trolley-clear" onClick={clearDone}>
+                Clear trolley
               </button>
               {showDone && (
                 <ul className="shop-list">
@@ -380,3 +388,4 @@ function ItemDialog({
     </Modal>
   );
 }
+

@@ -1,9 +1,10 @@
 import { db } from './db';
-import { deleteItem, itemForSlipLine, refreshLatestPrice } from './items';
+import { deleteItem, ensureItemRef, itemForSlipLine, refreshLatestPrice } from './items';
 import { differentProduct } from './productForms';
 import { MAX_PACK_PRICE } from './budgetpro';
 import { getSetting, setSetting } from './settings';
 import { looseLine } from './slips';
+import { parseIngredient } from './ingredients';
 
 // One-off clean-ups of data earlier versions got wrong. Each runs once per
 // install (remembered in settings) and reports what it changed in the log.
@@ -101,7 +102,43 @@ export const repairLoosePrices = db.transaction((): string[] => {
   return [...touched.values()];
 });
 
+/**
+ * 0.9.0: ingredient lines read again with the bracket-aware parser ("plain
+ * flour )" with note "(all-purpose flour), ((Note 1)" becomes "plain flour",
+ * note "all-purpose flour, Note 1"), and every item gets a short name for
+ * amounts in recipe steps — shortest names first, so Milk gets {{milk}}.
+ */
+export const repairIngredients = db.transaction((): { reparsed: number; refs: number } => {
+  const rows = db.prepare('SELECT id, raw, quantity, quantity_max, unit, name, note FROM recipe_ingredients').all() as {
+    id: string; raw: string; quantity: number | null; quantity_max: number | null; unit: string | null; name: string; note: string | null;
+  }[];
+  const update = db.prepare('UPDATE recipe_ingredients SET quantity = ?, quantity_max = ?, unit = ?, name = ?, note = ? WHERE id = ?');
+  let reparsed = 0;
+  for (const r of rows) {
+    const p = parseIngredient(r.raw);
+    if (p.name !== r.name || p.note !== r.note || p.quantity !== r.quantity || p.quantity_max !== r.quantity_max || p.unit !== r.unit) {
+      update.run(p.quantity, p.quantity_max, p.unit, p.name, p.note, r.id);
+      reparsed++;
+    }
+  }
+  // Plain names first, so Milk gets {{milk}} before "Giraf Mac Milk" can.
+  const words = (n: string) => n.split('(')[0].trim().split(/\s+/).length;
+  const items = (db.prepare('SELECT id, name FROM items WHERE ref IS NULL ORDER BY in_pantry DESC, use_count DESC, name').all() as { id: string; name: string }[])
+    .sort((a, b) => words(a.name) - words(b.name));
+  for (const i of items) ensureItemRef(i.id);
+  return { reparsed, refs: items.length };
+});
+
 export function runRepairs() {
+  if (!getSetting('repair_ingredients_v1')) {
+    try {
+      const r = repairIngredients();
+      setSetting('repair_ingredients_v1', new Date().toISOString());
+      if (r.reparsed || r.refs) console.log(`[repair] re-read ${r.reparsed} ingredient lines, gave ${r.refs} items a short name for recipe steps`);
+    } catch (e: any) {
+      console.warn(`[repair] ingredient clean-up failed: ${e.message}`);
+    }
+  }
   if (!getSetting('repair_loose_prices_v1')) {
     try {
       const names = repairLoosePrices();

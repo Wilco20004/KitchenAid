@@ -4,7 +4,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod';
 import { db } from './db';
 import { v4 as uuid } from 'uuid';
-import { loadRecipe } from './recipes';
+import { loadRecipe, setIngredientLinks } from './recipes';
+import { renderStep } from './steps';
 import { listRecipes } from './routes/recipes';
 import { nameKey, parseIngredient } from './ingredients';
 import { addItem, ShoppingItemRow } from './shopping';
@@ -281,14 +282,52 @@ function buildServer(): McpServer {
     'get_recipe',
     {
       title: 'Get a recipe',
-      description: 'Full recipe — ingredients (raw and parsed), steps, servings, times, notes, source.',
-      inputSchema: { recipe: z.string().describe('Recipe id or name') },
+      description:
+        'Full recipe — ingredients (raw and parsed, each with its linked catalogue item or a suggested one; a linked one carries the short name of its item "ref"), ' +
+        'steps, servings, times, notes, source. Steps may hold {{ref}} amounts ("Sift {{flour}}"); steps_text has them filled in, ' +
+        'scaled to servings if given.',
+      inputSchema: {
+        recipe: z.string().describe('Recipe id or name'),
+        servings: z.number().positive().optional().describe('Scale the filled-in step amounts to this many servings'),
+      },
       annotations: { readOnlyHint: true },
     },
-    async ({ recipe }) => {
+    async ({ recipe, servings }) => {
       const r = findRecipe(recipe);
       if (!r) throw new Error(`No recipe matching "${recipe}"`);
-      return json(r);
+      const factor = r.servings && servings ? servings / r.servings : 1;
+      return json({ ...r, steps_text: r.steps.map((st: any) => renderStep(st.text, r.ingredients, factor)) });
+    }
+  );
+
+  server.registerTool(
+    'link_recipe_ingredients',
+    {
+      title: 'Link recipe ingredients to items',
+      description:
+        'Say which catalogue item each ingredient of a recipe is, so costing, the pantry and the shopping list stop guessing from the ' +
+        'name. Ingredient ids come from get_recipe (which also shows a suggested item for unlinked ones). Give item_id, or item_name ' +
+        '(made if new), or no_link: true for things that should never be linked (water).',
+      inputSchema: {
+        recipe: z.string().describe('Recipe id or name'),
+        links: z
+          .array(
+            z.object({
+              ingredient_id: z.string(),
+              item_id: z.string().optional(),
+              item_name: z.string().optional(),
+              no_link: z.boolean().optional(),
+            })
+          )
+          .min(1),
+      },
+    },
+    async ({ recipe, links }) => {
+      const r = findRecipe(recipe);
+      if (!r) throw new Error(`No recipe matching "${recipe}"`);
+      const changed = setIngredientLinks(r.id, links.map((l) => ({ id: l.ingredient_id, item_id: l.item_id, item_name: l.item_name, no_link: l.no_link })));
+      const after = loadRecipe(r.id)!;
+      return json({ changed, ingredients: after.ingredients.map((i) => ({ id: i.id, raw: i.raw, item: i.item?.name ?? null, no_link: i.no_link })) });
     }
   );
 

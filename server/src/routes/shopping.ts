@@ -3,7 +3,7 @@ import { v4 as uuid } from 'uuid';
 import { db } from '../db';
 import { nameKey, parseIngredient } from '../ingredients';
 import { addItem, NewItem, ShoppingItemRow } from '../shopping';
-import { addToPantry, rememberItem } from '../items';
+import { rememberItem } from '../items';
 
 export const shoppingRouter = Router();
 
@@ -117,16 +117,11 @@ shoppingRouter.delete('/items/:id', (req, res) => {
   res.status(204).end();
 });
 
-// Ticked items are bought, so they move to the pantry on the way out
-// (unless { toPantry: false }).
+// Empties the trolley. Nothing goes into the pantry from here: things arrive
+// there from BudgetPro slips (with real amounts) or when added by hand.
 shoppingRouter.post('/lists/:id/clear-checked', (req, res) => {
-  const ticked = db.prepare('SELECT * FROM shopping_items WHERE list_id = ? AND checked = 1').all(req.params.id) as ShoppingItemRow[];
-  const toPantry = req.body?.toPantry !== false;
-  db.transaction(() => {
-    if (toPantry) for (const i of ticked) addToPantry({ itemId: i.item_id ?? undefined, name: i.name, quantity: i.quantity, unit: i.unit, source: 'shopping' });
-    db.prepare('DELETE FROM shopping_items WHERE list_id = ? AND checked = 1').run(req.params.id);
-  })();
-  res.json({ removed: ticked.length, toPantry: toPantry ? ticked.length : 0 });
+  const r = db.prepare('DELETE FROM shopping_items WHERE list_id = ? AND checked = 1').run(req.params.id);
+  res.json({ removed: r.changes });
 });
 
 // GET /api/shopping/suggest?q=pot — things bought before, most used first

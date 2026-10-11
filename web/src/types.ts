@@ -21,6 +21,40 @@ export interface Ingredient {
   unit: string | null;
   name: string;
   note: string | null;
+  /** The catalogue item this is (costing, pantry and shopping go by it). */
+  item_id: string | null;
+  item: { id: string; name: string; in_pantry: boolean } | null;
+  /** Told never to link (water). */
+  no_link: boolean;
+  /** An item it probably is, offered until linked or told not to. */
+  suggested: { id: string; name: string } | null;
+  /** The linked item's short name for amounts in steps ({{flour}}); null when not linked. */
+  ref: string | null;
+}
+
+/** An ingredient as the editor sends it; a bare { raw } line is parsed by the server. */
+export interface IngredientInput {
+  section: string | null;
+  raw?: string;
+  amount?: string;
+  unit?: string | null;
+  name?: string;
+  note?: string | null;
+  item_id?: string | null;
+  item_name?: string | null;
+  no_link?: boolean;
+}
+
+/** A pasted line read into editor fields. */
+export interface ParsedIngredient {
+  section: string | null;
+  raw: string;
+  quantity: number | null;
+  quantity_max: number | null;
+  unit: string | null;
+  name: string;
+  note: string | null;
+  suggested: { id: string; name: string } | null;
 }
 
 export interface Step {
@@ -63,7 +97,7 @@ export interface RecipeDraft {
   image_url?: string | null;
   notes: string | null;
   tags: string[];
-  ingredients: { section: string | null; raw: string }[];
+  ingredients: IngredientInput[];
   steps: { section: string | null; text: string }[];
 }
 
@@ -171,6 +205,8 @@ export interface GrocyImportResult {
 export interface Item {
   id: string;
   name: string;
+  /** Short name for amounts in recipe steps: Cake Flour → {{flour}}. */
+  ref?: string | null;
   category_id: string | null;
   category_name?: string | null;
   in_pantry: number;
@@ -188,6 +224,10 @@ export interface Item {
   price_source: string | null;
   price_at: string | null;
   barcode_count?: number;
+  /** What it comes in (bottle) and what one holds (750 ml), set on its sheet. */
+  container?: string | null;
+  size_quantity?: number | null;
+  size_unit?: string | null;
 }
 
 export interface ItemAlias {

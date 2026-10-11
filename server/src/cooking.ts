@@ -1,8 +1,9 @@
 import { db } from './db';
 import { Amount, formatAmount as formatSingular, nameKey, parseIngredient } from './ingredients';
-import { findItem, getItem, ItemRow, packOf, removeFromPantry, wordsWithin } from './items';
+import { findItem, getItem, ItemRow, removeFromPantry, wordsWithin, pantryPack } from './items';
 import { sameProductForm } from './productForms';
 import { PackContents, subtractAmounts } from './amounts';
+import { composeLine, itemOfIngredient } from './recipes';
 
 // Taking what was used out of the pantry: after cooking a recipe ("I cooked
 // this") or by hand ("Use some" — 2 hake medallions for lunch). Amounts come
@@ -68,7 +69,7 @@ export function remainingAfter(have: Amount, use: Amount, name: string, pack: Pa
 
 function planLine(ingredient: string, item: ItemRow, use: Amount): UsePlanLine {
   const have: Amount = { quantity: item.pantry_quantity, unit: item.pantry_unit };
-  const r = remainingAfter(have, use, item.name, packOf(item.pack_label, item.id));
+  const r = remainingAfter(have, use, item.name, pantryPack(item));
   const finished = r !== null && (r.left.quantity ?? 0) <= 0.0001;
   return {
     ingredient,
@@ -93,13 +94,16 @@ export function cookPlan(recipeId: string, servings?: number | null) {
   if (!recipe) throw new Error('Recipe not found');
   const factor = recipe.servings && servings ? servings / recipe.servings : 1;
   const ingredients = db
-    .prepare('SELECT raw, name, quantity, quantity_max, unit FROM recipe_ingredients WHERE recipe_id = ? ORDER BY position')
-    .all(recipeId) as { raw: string; name: string; quantity: number | null; quantity_max: number | null; unit: string | null }[];
+    .prepare('SELECT raw, name, quantity, quantity_max, unit, item_id, no_link FROM recipe_ingredients WHERE recipe_id = ? ORDER BY position')
+    .all(recipeId) as { raw: string; name: string; quantity: number | null; quantity_max: number | null; unit: string | null; item_id: string | null; no_link: number }[];
   const lines: UsePlanLine[] = [];
   const notAtHome: string[] = [];
   const seen = new Map<string, UsePlanLine>();
-  for (const ing of ingredients) {
-    const item = pantryItemFor(ing.name);
+  for (const row of ingredients) {
+    const ing = { ...row, raw: composeLine({ ...row, note: null }) };
+    // Linked: that item, if it's at home. Otherwise the best guess by name.
+    const linked = itemOfIngredient(ing, pantryItemFor);
+    const item = linked?.in_pantry ? linked : undefined;
     if (!item) {
       notAtHome.push(ing.raw);
       continue;

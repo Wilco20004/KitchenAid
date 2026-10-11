@@ -26,6 +26,7 @@ import {
   CookPlan,
   PendingSlip,
   UseResult,
+  ParsedIngredient,
 } from '../types';
 
 // Every path is relative (no leading slash) so it resolves under Home
@@ -78,6 +79,10 @@ export const api = {
   createRecipe: (data: RecipeDraft) => request<Recipe>('api/recipes', json('POST', data)),
   updateRecipe: (id: string, data: RecipeDraft) => request<Recipe>(`api/recipes/${id}`, json('PUT', data)),
   deleteRecipe: (id: string) => request<void>(`api/recipes/${id}`, { method: 'DELETE' }),
+  parseIngredients: (lines: { section: string | null; raw: string }[]) =>
+    request<ParsedIngredient[]>('api/recipes/parse-ingredients', json('POST', { lines })),
+  setIngredientLinks: (id: string, links: { id: string; item_id?: string | null; item_name?: string | null; no_link?: boolean }[]) =>
+    request<Recipe>(`api/recipes/${id}/links`, json('PUT', { links })),
   setFavorite: (id: string, favorite: boolean) => request<Recipe>(`api/recipes/${id}/favorite`, json('PUT', { favorite })),
   uploadRecipePhoto: (id: string, file: File) => {
     const form = new FormData();
@@ -115,8 +120,7 @@ export const api = {
   updateItem: (id: string, data: Partial<Omit<ShoppingItem, 'id' | 'list_id'>>) =>
     request<ShoppingItem>(`api/shopping/items/${id}`, json('PUT', data)),
   deleteItem: (id: string) => request<void>(`api/shopping/items/${id}`, { method: 'DELETE' }),
-  clearChecked: (listId: string, toPantry = true) =>
-    request<{ removed: number; toPantry: number }>(`api/shopping/lists/${listId}/clear-checked`, json('POST', { toPantry })),
+  clearChecked: (listId: string) => request<{ removed: number }>(`api/shopping/lists/${listId}/clear-checked`, { method: 'POST' }),
   suggest: (q: string) => request<{ name: string; category_id: string | null }[]>(`api/shopping/suggest?q=${encodeURIComponent(q)}`),
 
   listCategories: () => request<Category[]>('api/categories'),
@@ -138,11 +142,16 @@ export const api = {
   getCatalogItem: (id: string) => request<ItemDetail>(`api/items/${id}`),
   createCatalogItem: (data: { name: string; category_id?: string | null; barcode?: string; barcode_label?: string | null }) =>
     request<ItemDetail>('api/items', json('POST', data)),
-  updateCatalogItem: (id: string, data: { name?: string; category_id?: string | null }) => request<ItemDetail>(`api/items/${id}`, json('PUT', data)),
+  updateCatalogItem: (id: string, data: { name?: string; category_id?: string | null; ref?: string }) => request<ItemDetail>(`api/items/${id}`, json('PUT', data)),
   deleteCatalogItem: (id: string) => request<void>(`api/items/${id}`, { method: 'DELETE' }),
   addPantryText: (text: string) => request<Item>('api/pantry', json('POST', { text })),
   putInPantry: (id: string, data: { quantity?: number | null; unit?: string | null; note?: string | null } = {}) =>
     request<Item>(`api/items/${id}/pantry`, json('POST', data)),
+  containers: () => request<string[]>('api/containers'),
+  setItemSize: (id: string, data: { container?: string | null; size_quantity?: number | null; size_unit?: string | null }) =>
+    request<ItemDetail>(`api/items/${id}/size`, json('PUT', data)),
+  setPantryAmount: (id: string, data: { quantity: number | null; unit: string | null }) =>
+    request<ItemDetail>(`api/items/${id}/pantry`, json('PUT', data)),
   setExpiry: (id: string, data: { expires_at?: string | null; keeps_days?: number | null }) =>
     request<ItemDetail>(`api/items/${id}/expiry`, json('PUT', data)),
   useSome: (id: string, data: { amount?: string; used_up?: boolean }) =>

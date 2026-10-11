@@ -19,7 +19,11 @@ import {
   removeFromPantry,
   setExpiry,
   setPackPrice,
+  setItemRef,
+  setItemSize,
+  setPantryAmount,
 } from '../items';
+import { CONTAINERS } from '../amounts';
 import { budgetProStatus, syncBudgetPro } from '../budgetpro';
 import { parseAmount, useFromPantry } from '../cooking';
 import { acceptSlipLines, pendingSlips, skipSlipLines } from '../slips';
@@ -63,6 +67,15 @@ itemsRouter.post('/items', (req, res) => {
 itemsRouter.put('/items/:id', (req, res) => {
   const item = getItem(req.params.id);
   if (!item) return res.status(404).json({ error: 'Item not found' });
+  // { ref } alone: the short name for recipe steps (steps using the old one follow).
+  if (typeof req.body?.ref === 'string' && req.body.name === undefined && req.body.category_id === undefined) {
+    try {
+      setItemRef(item.id, req.body.ref);
+    } catch (e: any) {
+      return fail(res, e, e.status ?? 400);
+    }
+    return res.json(itemDetail(item.id));
+  }
   const name = typeof req.body?.name === 'string' && req.body.name.trim() ? req.body.name.trim() : item.name;
   const key = nameKey(name);
   const clash = db.prepare('SELECT name FROM items WHERE name_key = ? AND id != ?').get(key, item.id) as { name: string } | undefined;
@@ -120,6 +133,38 @@ itemsRouter.post('/items/:id/pantry', (req, res) => {
     res.json(
       addToPantry({ itemId: req.params.id, quantity: req.body?.quantity ?? null, unit: req.body?.unit ?? null, note: req.body?.note ?? null, expires_at: expires })
     );
+  } catch (e) {
+    fail(res, e, 404);
+  }
+});
+
+// PUT /api/items/:id/size { container, size_quantity, size_unit } — how it comes: a bottle of 750 ml
+itemsRouter.put('/items/:id/size', (req, res) => {
+  const b = req.body ?? {};
+  const num = (v: unknown) => (v === null || v === '' ? null : Number(v));
+  try {
+    setItemSize(req.params.id, {
+      container: b.container,
+      size_quantity: b.size_quantity === undefined ? undefined : num(b.size_quantity),
+      size_unit: b.size_unit,
+    });
+    res.json(itemDetail(req.params.id));
+  } catch (e: any) {
+    fail(res, e, /not found/i.test(e.message) ? 404 : 400);
+  }
+});
+
+// GET /api/containers — what an item can come in
+itemsRouter.get('/containers', (_req, res) => res.json(CONTAINERS));
+
+// PUT /api/items/:id/pantry { quantity, unit } — set exactly what's at home (fix a wrong count)
+itemsRouter.put('/items/:id/pantry', (req, res) => {
+  const q = req.body?.quantity;
+  const quantity = q === null || q === undefined || q === '' ? null : Number(q);
+  if (quantity !== null && !(quantity >= 0)) return res.status(400).json({ error: 'Amount must be a number' });
+  try {
+    setPantryAmount(req.params.id, { quantity, unit: typeof req.body?.unit === 'string' ? req.body.unit.trim().toLowerCase() || null : null });
+    res.json(itemDetail(req.params.id));
   } catch (e) {
     fail(res, e, 404);
   }

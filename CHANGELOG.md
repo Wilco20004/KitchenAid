@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.9.0 — 2026-10-11
+
+- **Ingredients are rows now**: amount, unit, name and a **note** you can
+  edit, reordered with ↑ ↓, with section headings. **Paste a list** still
+  takes lines of text and fills the rows in.
+- **Link each ingredient to its item.** A linked ingredient is costed, taken
+  from the pantry when cooked and put on the shopping list as that item, so
+  "plain flour" linked to Cake Flour no longer depends on the spelling
+  matching. KitchenAid suggests links (plain flour → Cake Flour, bi-carb →
+  Baking Soda) for you to confirm — in the editor, or from the "not linked"
+  button on a recipe — and never links anything by itself. Merging items
+  keeps recipe links.
+- **Live amounts in steps**: write `Sift {{flour}} and {{salt}}` and the
+  recipe shows "Sift 1¾ cups plain flour and ½ tsp salt", scaled with the
+  servings and following any change to the ingredient. `{{flour.amount}}`,
+  `{{flour.name}}` and parts like `{{chips*1/6}}` work too. Typing `{{` in
+  the method lists the ingredients, and a preview shows the result.
+- **Short names live on the item**, not the recipe: every item gets one
+  (Cake Flour → `{{flour}}`), changed on its sheet in Pantry and the same in
+  every recipe linked to it. Changing it updates those recipes' steps; an
+  item used twice in a recipe gives the total.
+- Recipe-site lines with brackets inside brackets read properly: "1 3/4 cups
+  plain flour (all-purpose flour) ((Note 1))" was saved as "plain flour )".
+  Existing recipes are re-read once on update.
+- **Clearing the trolley just empties it.** The shopping list no longer
+  puts anything into the pantry (it used to, without amounts, and doubled up
+  with slips); the pantry fills from BudgetPro slips and by hand only.
+- **Slip review: Pantry or Remove on every line**, plus "all pantry" /
+  "remove all" per slip, and one **Save** that adds the pantry lines and
+  takes the removed ones off the sheet (no separate skip step).
+- **What an item comes in**, on its sheet in Pantry: a bottle of 750 ml, a
+  tin of 400 g. What's at home shows as "2 bottles of 750 ml", cooking and
+  "Used some" take ml or g off it, a wrong "1 packet" (lemon juice!) is
+  recounted as "1 bottle", and slips without a size default to it.
+  **change amount** sets exactly what's at home. New containers: carton,
+  tray, punnet, pouch, tube.
+- Setting a price on such an item asks "for one bottle of [750] ml", starting
+  at the usual size, so a 500 ml bottle is priced right (R19.99 → R39.98/L)
+  without typing a pack label.
+- Amounts show eighths (⅞ cup) instead of 0.9 cup.
+- Cake flour counts as flour when matching prices, not as cake.
+- AI assistants: `get_recipe` returns each ingredient's link and the steps
+  with amounts filled in (optionally scaled); new `link_recipe_ingredients`.
+
 ## 0.8.2 — 2026-09-27
 
 - **Take recipe photos with the camera.** The recipe editor has a

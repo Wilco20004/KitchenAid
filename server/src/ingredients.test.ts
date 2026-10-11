@@ -40,7 +40,7 @@ test('a unit-looking word at the start of a name is not a unit', () => {
 test('notes: parentheticals and after the first comma', () => {
   const r = p('1 cup (120g) plain flour, sifted');
   assert.equal(r.name, 'plain flour');
-  assert.equal(r.note, '(120g), sifted');
+  assert.equal(r.note, '120g, sifted');
   assert.equal(r.unit, 'cup');
   assert.equal(p('2 x 400g tins chickpeas, drained').quantity, 2);
 });

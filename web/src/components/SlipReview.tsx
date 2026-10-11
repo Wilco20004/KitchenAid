@@ -63,7 +63,8 @@ export default function SlipReview({ onClose, onDone }: { onClose: () => void; o
 
   const set = (id: string, patch: Partial<Draft>) => setDrafts((d) => ({ ...d, [id]: { ...d[id], ...patch } }));
 
-  async function accept() {
+  // One save for both choices: Pantry lines go in, Remove lines leave the sheet.
+  async function save() {
     setBusy(true);
     setError(null);
     try {
@@ -79,8 +80,10 @@ export default function SlipReview({ onClose, onDone }: { onClose: () => void; o
           pack_unit: d.unit && q > 0 ? d.unit : null,
         };
       });
+      const removeIds = lines.filter((l) => !drafts[l.id]?.on).map((l) => l.id);
       const r = payload.length ? await api.acceptSlipLines(payload) : { results: [] };
-      setDone({ added: r.results.length, skipped: 0, ticked: r.results.reduce((n, x) => n + x.ticked, 0) });
+      if (removeIds.length) await api.skipSlipLines(removeIds);
+      setDone({ added: r.results.length, skipped: removeIds.length, ticked: r.results.reduce((n, x) => n + x.ticked, 0) });
       onDone();
     } catch (e: any) {
       setError(e.message);
@@ -89,21 +92,8 @@ export default function SlipReview({ onClose, onDone }: { onClose: () => void; o
     }
   }
 
-  async function skipUnticked() {
-    const ids = lines.filter((l) => !drafts[l.id]?.on).map((l) => l.id);
-    if (!ids.length) return;
-    if (!confirm(`Leave ${ids.length} unticked line${ids.length === 1 ? '' : 's'} out of the pantry for good?`)) return;
-    setBusy(true);
-    try {
-      await api.skipSlipLines(ids);
-      setSlips((s) => (s ?? []).map((x) => ({ ...x, lines: x.lines.filter((l) => !ids.includes(l.id)) })).filter((x) => x.lines.length));
-      onDone();
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const setSlip = (slip: PendingSlip, on: boolean) =>
+    setDrafts((d) => ({ ...d, ...Object.fromEntries(slip.lines.map((l) => [l.id, { ...d[l.id], on }])) }));
 
   if (done) {
     return (
@@ -118,27 +108,26 @@ export default function SlipReview({ onClose, onDone }: { onClose: () => void; o
       >
         <p>
           {done.added} line{done.added === 1 ? '' : 's'} added to the pantry
-          {done.ticked ? `, ${done.ticked} ticked off the shopping list` : ''}. Pack sizes you gave are remembered for next time.
+          {done.ticked ? `, ${done.ticked} ticked off the shopping list` : ''}
+          {done.skipped ? `, ${done.skipped} removed` : ''}.{done.added ? ' Pack sizes you gave are remembered for next time.' : ''}
         </p>
       </Modal>
     );
   }
 
-  const unticked = lines.length - ticked.length;
+  const removing = lines.length - ticked.length;
   return (
     <Modal
       title="Check new slips"
       onClose={onClose}
       footer={
         <>
-          {unticked > 0 && (
-            <button type="button" className="button ghost" onClick={skipUnticked} disabled={busy}>
-              Skip {unticked} unticked
-            </button>
-          )}
+          <span className="muted small">
+            {ticked.length} to the pantry{removing ? ` · ${removing} removed` : ''}
+          </span>
           <span className="toolbar-spacer" />
-          <button type="button" className="button" onClick={accept} disabled={busy || !ticked.length}>
-            {busy ? 'Adding…' : `Add ${ticked.length} to the pantry`}
+          <button type="button" className="button" onClick={save} disabled={busy || !lines.length}>
+            {busy ? 'Saving…' : 'Save'}
           </button>
         </>
       }
@@ -151,9 +140,10 @@ export default function SlipReview({ onClose, onDone }: { onClose: () => void; o
       ) : (
         <>
           <p className="muted small">
-            Say what each line is and what <strong>one</strong> pack holds (a 500 g brick, 1 tin, 24 cubes). It's remembered, so next time these are
-            filled in already. For loose produce (BANANA KG) give what the bag weighed, or how many, and it's priced from that. Untick anything
-            that isn't for the pantry.
+            Every line is <strong>Pantry</strong> or <strong>Remove</strong>. For pantry lines say what each is and what <strong>one</strong> pack
+            holds (a 500 g brick, 1 tin, 24 cubes) — it's remembered, so next time these are filled in already. For loose produce (BANANA KG)
+            give what the bag weighed, or how many. <strong>Remove</strong> anything that isn't for the pantry (a milk tart, a baking tray):
+            it leaves the sheet, and its price is still kept.
           </p>
           <datalist id="slip-items">
             {catalog.map((i) => (
@@ -162,9 +152,19 @@ export default function SlipReview({ onClose, onDone }: { onClose: () => void; o
           </datalist>
           {slips.map((s) => (
             <section key={s.receipt_id} className="slip">
-              <h3>
-                {s.store ?? 'Slip'} <span className="muted small">· {s.bought_at}</span>
-              </h3>
+              <div className="slip-head">
+                <h3>
+                  {s.store ?? 'Slip'} <span className="muted small">· {s.bought_at}</span>
+                </h3>
+                <span className="slip-all">
+                  <button type="button" className="text-button tiny" onClick={() => setSlip(s, true)}>
+                    all pantry
+                  </button>
+                  <button type="button" className="text-button tiny" onClick={() => setSlip(s, false)}>
+                    remove all
+                  </button>
+                </span>
+              </div>
               <ul className="slip-lines">
                 {s.lines.map((l) => {
                   const d = drafts[l.id];
@@ -172,8 +172,15 @@ export default function SlipReview({ onClose, onDone }: { onClose: () => void; o
                   const t = total(l, d);
                   return (
                     <li key={l.id} className={`${d.on ? '' : 'off'}${l.pack.from === 'guess' && d.unit === draftOf(l).unit ? ' guess' : ''}`}>
-                      <label className="slip-raw">
-                        <input type="checkbox" checked={d.on} onChange={() => set(l.id, { on: !d.on })} />
+                      <div className="slip-raw">
+                        <span className="segmented slip-choice" role="group" aria-label={`${l.raw_name}: pantry or remove`}>
+                          <button type="button" className={d.on ? 'active' : ''} aria-pressed={d.on} onClick={() => set(l.id, { on: true })}>
+                            Pantry
+                          </button>
+                          <button type="button" className={!d.on ? 'active remove' : ''} aria-pressed={!d.on} onClick={() => set(l.id, { on: false })}>
+                            Remove
+                          </button>
+                        </span>
                         <span>
                           <strong>{l.raw_name}</strong>
                           <span className="muted tiny">
@@ -182,38 +189,40 @@ export default function SlipReview({ onClose, onDone }: { onClose: () => void; o
                             {rand(l.amount / (l.quantity || 1))}
                           </span>
                         </span>
-                      </label>
-                      <div className="slip-fields">
-                        <input
-                          list="slip-items"
-                          value={d.item}
-                          onChange={(e) => set(l.id, { item: e.target.value })}
-                          aria-label={`Item for ${l.raw_name}`}
-                          placeholder="Item"
-                        />
-                        <span className="slip-pack">
-                          <input
-                            inputMode="decimal"
-                            value={d.qty}
-                            onChange={(e) => set(l.id, { qty: e.target.value, unit: d.unit || (l.pack.from === 'loose' ? 'kg' : 'piece') })}
-                            aria-label={l.pack.from === 'loose' ? 'The bag weighed' : 'One pack holds'}
-                            placeholder={l.pack.from === 'loose' ? 'weight' : '—'}
-                          />
-                          <select value={d.unit} onChange={(e) => set(l.id, { unit: e.target.value, qty: e.target.value ? d.qty || '1' : '' })} aria-label="Unit">
-                            <option value="">no amount</option>
-                            {UNITS.map((u) => (
-                              <option key={u} value={u}>
-                                {u}
-                              </option>
-                            ))}
-                          </select>
-                        </span>
-                        <span className="muted tiny slip-total">
-                          {t ? `→ ${t}` : '→ at home'}
-                          {l.pack.from === 'loose' && !t ? ' · loose: weight or count?' : ''}
-                          {l.pack.from === 'remembered' ? ' ✓' : l.pack.from === 'guess' && d.qty === draftOf(l).qty && d.unit === draftOf(l).unit ? ' · check' : ''}
-                        </span>
                       </div>
+                      {d.on && (
+                        <div className="slip-fields">
+                          <input
+                            list="slip-items"
+                            value={d.item}
+                            onChange={(e) => set(l.id, { item: e.target.value })}
+                            aria-label={`Item for ${l.raw_name}`}
+                            placeholder="Item"
+                          />
+                          <span className="slip-pack">
+                            <input
+                              inputMode="decimal"
+                              value={d.qty}
+                              onChange={(e) => set(l.id, { qty: e.target.value, unit: d.unit || (l.pack.from === 'loose' ? 'kg' : 'piece') })}
+                              aria-label={l.pack.from === 'loose' ? 'The bag weighed' : 'One pack holds'}
+                              placeholder={l.pack.from === 'loose' ? 'weight' : '—'}
+                            />
+                            <select value={d.unit} onChange={(e) => set(l.id, { unit: e.target.value, qty: e.target.value ? d.qty || '1' : '' })} aria-label="Unit">
+                              <option value="">no amount</option>
+                              {UNITS.map((u) => (
+                                <option key={u} value={u}>
+                                  {u}
+                                </option>
+                              ))}
+                            </select>
+                          </span>
+                          <span className="muted tiny slip-total">
+                            {t ? `→ ${t}` : '→ at home'}
+                            {l.pack.from === 'loose' && !t ? ' · loose: weight or count?' : ''}
+                            {l.pack.from === 'remembered' ? ' ✓' : l.pack.from === 'guess' && d.qty === draftOf(l).qty && d.unit === draftOf(l).unit ? ' · check' : ''}
+                          </span>
+                        </div>
+                      )}
                     </li>
                   );
                 })}

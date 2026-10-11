@@ -25,7 +25,15 @@ const FORM_WORDS = [
 
 const FORMS = new Set(FORM_WORDS);
 
-const tokens = (s: string) => s.toLowerCase().split(/[^a-z]+/).filter(Boolean);
+// Staples whose names contain a form word without being that product: cake
+// flour is flour (South Africa's plain flour), not cake.
+const STAPLE_NAMES: [RegExp, string][] = [[/\bcake\s+(?:wheat\s+)?flour\b/g, 'cakeflour']];
+
+const tokens = (s: string) => {
+  let t = s.toLowerCase();
+  for (const [re, word] of STAPLE_NAMES) t = t.replace(re, word);
+  return t.split(/[^a-z]+/).filter(Boolean);
+};
 
 /**
  * True when `product` has a product-form word that `item` doesn't, so it's a

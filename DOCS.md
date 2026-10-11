@@ -25,8 +25,35 @@ open Home Assistant shares the same recipes, plan and lists.
   doesn't try to get around that. Use **Paste text** instead — either the
   recipe copied from the page, or the whole page source (Ctrl+U, select all,
   copy), which gets read exactly like a fetched page.
-- **New** lets you type a recipe in. Ingredients and method are plain text,
-  one per line; a line ending in a colon (`For the sauce:`) starts a section.
+- **New** lets you type a recipe in. Each ingredient is a row: amount
+  (`1¾`, `2–3`), unit, name and a **note** (sifted, at room temperature…),
+  with ↑ ↓ to reorder and **Section** for headings like "For the sauce".
+  **Paste a list** takes lines of text instead (a line ending in a colon
+  starts a section) and fills in the rows. The method is plain text, one step
+  per line.
+- **Linked ingredients.** Each ingredient can be linked to the item it is in
+  the catalogue — the same items the pantry, slips and prices use. A linked
+  ingredient is costed, taken out of the pantry and put on the shopping list
+  as that item, whatever the recipe calls it ("plain flour" linked to Cake
+  Flour). Unlinked ones still match by name, and KitchenAid suggests a link
+  (plain flour → Cake Flour, bi-carb → Baking Soda, large eggs → Eggs) but
+  never links anything itself: confirm it in the editor or with the
+  "not linked" button on the recipe. Type a name that isn't an item yet and
+  it's made; **don't link** is for things like water. Merging two items
+  keeps their recipe links.
+- **Amounts in steps.** Every item in the pantry list has a short name
+  (Cake Flour → `{{flour}}`), set on the item's sheet in **Pantry** and the
+  same in every recipe. A linked ingredient shows it under its row. Write it
+  in a step — `Sift {{flour}} and {{salt}}` — and the recipe shows "Sift 1¾
+  cups plain flour and ½ tsp salt", scaled with the servings and updated
+  whenever the ingredient changes. `{{flour.amount}}` is just "1¾ cups",
+  `{{flour.name}}` just the name, and `{{chips*1/6}}` a part of it ("¼ cup
+  dark chocolate chips"). `{{ingredient.flour.total}}` works too. An item
+  used twice in a recipe (sugar for the batter and the topping) gives the
+  total. Typing `{{` in the method lists the linked ingredients' short names;
+  a step naming one that isn't linked stops the save. Changing a short name
+  on the item updates every recipe that uses it, and merging two items moves
+  their recipes to the kept item's name.
 - **Photos:** on a phone, **Take photo** in the editor, or the 📷 button on
   a recipe, opens the camera directly. It works over plain http too. Photos
   are scaled down to 1600 px before upload, so they stay small.
@@ -61,7 +88,9 @@ The same **Shopping list** button is on every recipe.
 - Adding something that's already on the list tops up the amount instead of
   adding a second line (500 g + 1 kg mince → 1.5 kg).
 - Tap an item to tick it off; ticked items drop into **In the trolley**.
-  **Clear ticked** removes them.
+  **Clear trolley** empties it. Nothing goes into the pantry from the
+  shopping list: the pantry fills from BudgetPro slips (with the amounts you
+  actually bought) or when you add things by hand.
 - The list refreshes itself every few seconds, so two people can shop from
   (or add to) the same list on different phones.
 - More than one list (e.g. "Groceries" and "Makro") can be added under
@@ -69,15 +98,23 @@ The same **Shopping list** button is on every recipe.
 
 ## Pantry and items
 
-**Pantry** shows what's at home, grouped by aisle. Things arrive when you
-clear ticked items off the shopping list, from BudgetPro slips (below), by
-scanning a barcode, or by typing ("2 kg rice"). **Used up** takes them out.
+**Pantry** shows what's at home, grouped by aisle. Things arrive from
+BudgetPro slips (below, with the amounts actually bought), by scanning a
+barcode, or by typing ("2 kg rice") — not from the shopping list. **Used up** takes them out.
 Deliberately no stock counts.
+
+**Comes in.** On an item's sheet, say what it comes in and what one holds —
+Lemon juice: a **bottle** of **750 ml**. What's at home can then be counted
+in bottles ("2 bottles of 750 ml"), and recipes or **Used some** take
+millilitres off it (30 ml from a bottle leaves 720 ml). Setting it recounts
+a wrong "1 packet" as "1 bottle", and new slips that don't print a size use
+it. **change amount** on the sheet sets exactly what's at home, in bottles,
+ml, g or pieces.
 
 **Use-by dates.** Tap an item at home and set the date on the pack, or set
 how long it **usually keeps** (quick picks: 3 days, a week, a month, 3 or 6
 months). That's remembered for the item, so every later purchase — from a
-slip, the shopping list or by hand — gets its date on its own: set mince in
+slip or added by hand — gets its date on its own: set mince in
 the freezer to 3 months once and each new packet is dated. Buying more of
 something already at home keeps the earlier date, since the older packet
 goes off first. Anything expired or due within a week sits in **Use soon**
@@ -185,8 +222,10 @@ New grocery slips don't go straight into the pantry: their lines wait on a
 **review sheet** (a banner on the Pantry page says how many). For each line,
 check the item it goes to — pick another or type a better name — and what
 **one pack** holds (500 g, 1 tin, 24 pieces, or "no amount"). The total
-going in is shown beside it. Untick lines that aren't for the pantry and
-skip them. Whatever you answer is remembered for that slip spelling and for
+going in is shown beside it. Every line is **Pantry** or **Remove** (each
+slip also has *all pantry* / *remove all*): remove what isn't for the
+pantry — a milk tart, a baking tray — and **Save** puts the rest in and
+takes the removed lines off the sheet (their prices are still kept). Whatever you answer is remembered for that slip spelling and for
 the item, so the same lines next time are filled in (marked ✓) and checking
 a slip is one tap; lines still on a guess are marked *check*. The pack size
 also turns a price like "BONNITA BUTTER R59.99" into a price per gram for
@@ -217,7 +256,7 @@ for each. Requests from the LAN need the token as
 
 Tools: `search_prices`, `price_history`, `price_shopping_list`,
 `list_price_watchlist`, `watch_price`, `set_product_size`,
-`search_recipes`, `get_recipe`, `recipe_cost`, `get_meal_plan`,
+`search_recipes`, `get_recipe`, `link_recipe_ingredients`, `recipe_cost`, `get_meal_plan`,
 `plan_meal`, `get_shopping_list`, `add_to_shopping_list`, `get_pantry`,
 `update_pantry`, `cooked_recipe`, `find_item`, `prices_paid`, `sync_budgetpro`.
 

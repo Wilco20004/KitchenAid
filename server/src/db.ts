@@ -314,6 +314,21 @@ addColumn('items', 'keeps_days', 'INTEGER');
 // What one pack of a slip spelling is in the pantry (500 g, 1 tin, 24 pieces).
 addColumn('item_aliases', 'pack_quantity', 'REAL');
 addColumn('item_aliases', 'pack_unit', 'TEXT');
+// An ingredient linked to the item it is (costing, pantry and shopping use the
+// link instead of guessing from the name); no_link = "don't suggest one" (water).
+addColumn('recipe_ingredients', 'item_id', 'TEXT REFERENCES items(id) ON DELETE SET NULL');
+addColumn('recipe_ingredients', 'no_link', 'INTEGER NOT NULL DEFAULT 0');
+// An item's short name for amounts in recipe steps: Cake Flour → {{flour}}.
+// One per item, the same in every recipe that links to it.
+addColumn('items', 'ref', 'TEXT');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_items_ref ON items(ref) WHERE ref IS NOT NULL');
+// How an item comes, set by hand on its sheet: a bottle (container) of
+// 750 ml (size_quantity + size_unit). The pantry can then count bottles and
+// still take millilitres off when cooking; slips default to this size.
+addColumn('items', 'container', 'TEXT');
+addColumn('items', 'size_quantity', 'REAL');
+addColumn('items', 'size_unit', 'TEXT');
+db.exec('CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_item ON recipe_ingredients(item_id)');
 
 // First run: a default list, a sensible aisle order, and a few staples.
 const now = new Date().toISOString();

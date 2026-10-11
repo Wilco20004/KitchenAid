@@ -6,7 +6,8 @@ import { parsePackSize } from './prices/units';
 // minus 300 g is 200 g. Counts, packs, weights and volumes all meet here.
 
 /** Units that mean "one pack of whatever the item is sold in". */
-export const PACK_UNITS = new Set(['packet', 'sachet', 'tin', 'can', 'jar', 'bottle', 'bag', 'box', 'tub']);
+export const CONTAINERS = ['bottle', 'carton', 'tin', 'can', 'jar', 'packet', 'sachet', 'bag', 'box', 'tub', 'tray', 'punnet', 'pouch', 'tube'];
+export const PACK_UNITS = new Set(CONTAINERS);
 const ITEM_UNITS = new Set([null, 'piece', 'pieces', 'each', 'ea']);
 
 // Rough grams per millilitre, for recipes that measure by cup/spoon what

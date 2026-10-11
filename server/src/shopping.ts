@@ -102,11 +102,13 @@ export function previewIngredients(entries: { recipe_id: string; servings: numbe
     if (!recipe) continue;
     const factor = recipe.servings && entry.servings ? entry.servings / recipe.servings : 1;
     const ingredients = db
-      .prepare('SELECT name, quantity, unit FROM recipe_ingredients WHERE recipe_id = ? ORDER BY position')
-      .all(entry.recipe_id) as { name: string; quantity: number | null; unit: string | null }[];
+      .prepare(`SELECT ri.name, ri.quantity, ri.unit, i.name AS item_name, i.name_key AS item_key, i.in_pantry AS item_in_pantry
+         FROM recipe_ingredients ri LEFT JOIN items i ON i.id = ri.item_id WHERE ri.recipe_id = ? ORDER BY ri.position`)
+      .all(entry.recipe_id) as { name: string; quantity: number | null; unit: string | null; item_name: string | null; item_key: string | null; item_in_pantry: number | null }[];
 
     for (const ing of ingredients) {
-      const key = nameKey(ing.name);
+      // A linked ingredient shops as its item: "plain flour" and "cake flour" both linked to Flour make one line.
+      const key = ing.item_key ?? nameKey(ing.name);
       const amount: Amount = { quantity: ing.quantity === null ? null : ing.quantity * factor, unit: ing.unit };
       // Separate buckets per unit family so "2 cups flour" and "100 g flour" don't fight.
       let bucket = `${key}|${unitFamily(amount.unit)}`;
@@ -122,13 +124,13 @@ export function previewIngredients(entries: { recipe_id: string; servings: numbe
       }
       lines.set(bucket, {
         key,
-        name: ing.name,
+        name: ing.item_name ?? ing.name,
         quantity: amount.quantity,
         unit: amount.unit,
         amount: formatAmount(amount),
         sources: [recipe.name],
         staple: staples.has(key),
-        in_pantry: pantryCovers(key, inPantry),
+        in_pantry: ing.item_key ? Boolean(ing.item_in_pantry) : pantryCovers(key, inPantry),
       });
     }
   }

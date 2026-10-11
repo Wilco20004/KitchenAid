@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { Category, Item, ItemAlias, ItemDetail } from '../types';
-import { expiryLabel, formatAmount, rand, unitPriceLabel } from '../utils/format';
+import { expiryLabel, formatAmount, pantryAmount, rand, unitPriceLabel } from '../utils/format';
 import Modal from './Modal';
 import Icon from './Icon';
 import BarcodeScanner from './BarcodeScanner';
+import { sanitizeRef } from '../utils/steps';
 
 const KIND_LABEL: Record<ItemAlias['kind'], string> = {
   barcode: 'Barcode',
@@ -49,9 +50,17 @@ export default function ItemSheet({
   const [item, setItem] = useState<ItemDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [ref, setRef] = useState('');
+  const [containers, setContainers] = useState<string[]>([]);
+  const [sizeQty, setSizeQty] = useState('');
+  // Fixing what's at home: null when not editing.
+  const [amountEdit, setAmountEdit] = useState<{ quantity: string; unit: string } | null>(null);
   const [pricing, setPricing] = useState(false);
   const [packPrice, setPackPrice] = useState('');
   const [packLabel, setPackLabel] = useState('');
+  // The size of the pack being priced, when the item has a usual one: starts
+  // at that size, changed for the odd 500 ml bottle.
+  const [priceSize, setPriceSize] = useState<{ quantity: string; unit: string }>({ quantity: '', unit: 'ml' });
   const [newName, setNewName] = useState('');
   const [newBarcode, setNewBarcode] = useState('');
   const [scanning, setScanning] = useState(false);
@@ -61,11 +70,17 @@ export default function ItemSheet({
   const [useMsg, setUseMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    api.containers().then(setContainers).catch(() => setContainers([]));
+  }, []);
+
+  useEffect(() => {
     api
       .getCatalogItem(itemId)
       .then((i) => {
         setItem(i);
         setName(i.name);
+        setRef(i.ref ?? '');
+        setSizeQty(i.size_quantity?.toString() ?? '');
         setKeeps(i.keeps_days?.toString() ?? '');
       })
       .catch((e) => setError(e.message));
@@ -78,6 +93,8 @@ export default function ItemSheet({
       const fresh = await api.getCatalogItem(itemId);
       setItem(fresh);
       setName(fresh.name);
+      setRef(fresh.ref ?? '');
+      setSizeQty(fresh.size_quantity?.toString() ?? '');
       setKeeps(fresh.keeps_days?.toString() ?? '');
       onChanged();
     } catch (e: any) {
@@ -108,6 +125,33 @@ export default function ItemSheet({
     if (c) run(() => api.addAlias(item!.id, 'barcode', c)).then(() => setNewBarcode(''));
   }
 
+  // The short name recipe steps use for this item: {{flour}}. The server
+  // rewrites the steps of recipes using the old one.
+  function saveRef() {
+    const next = ref.replace(/-+$/, '');
+    if (!next) return setRef(item!.ref ?? '');
+    if (next !== item!.ref) run(() => api.updateCatalogItem(item!.id, { ref: next }));
+  }
+
+  function saveSize(patch: { container?: string | null; size_quantity?: number | null; size_unit?: string | null }) {
+    run(() => api.setItemSize(item!.id, patch));
+  }
+
+  function saveSizeQty() {
+    const q = sizeQty.trim() ? Number(sizeQty.replace(',', '.')) : null;
+    if (q === item!.size_quantity) return;
+    if (q !== null && !(q > 0)) return setError('The size must be a number, e.g. 750');
+    saveSize({ size_quantity: q, size_unit: q === null ? null : item!.size_unit ?? (item!.container ? 'ml' : 'g') });
+  }
+
+  function saveAmount(e: FormEvent) {
+    e.preventDefault();
+    if (!amountEdit) return;
+    const q = amountEdit.quantity.trim() ? Number(amountEdit.quantity.replace(',', '.')) : null;
+    if (q !== null && !(q > 0)) return setError('The amount must be a number');
+    run(() => api.setPantryAmount(item!.id, { quantity: q, unit: q === null ? null : amountEdit.unit || null })).then(() => setAmountEdit(null));
+  }
+
   function saveKeeps(value: string) {
     const days = value.trim() ? Number(value) : null;
     if (days === item!.keeps_days) return;
@@ -131,10 +175,26 @@ export default function ItemSheet({
     });
   }
 
+  // Items with a "Comes in" size are priced per container of a size (starting at the usual one).
+  const sized = item.size_quantity != null && !!item.size_unit;
+
+  function startPricing() {
+    setPricing((p) => !p);
+    setPriceSize({ quantity: item!.size_quantity?.toString() ?? '', unit: item!.size_unit ?? 'ml' });
+  }
+
   function savePrice(e: FormEvent) {
     e.preventDefault();
     const p = Number(packPrice.replace(',', '.'));
-    if (p > 0) run(() => api.setItemPrice(item!.id, p, packLabel || '1')).then(() => setPricing(false));
+    // Sized like the item ("bottle of 500 ml"), else whatever pack size was typed.
+    const q = Number(priceSize.quantity.replace(',', '.'));
+    const label = sized ? (q > 0 ? `${item!.container ?? 'pack'} of ${q} ${priceSize.unit === 'piece' ? 'pieces' : priceSize.unit}` : '') : packLabel.trim();
+    if (sized && !(q > 0)) return setError('Say how big the pack was, e.g. 750 ml');
+    if (p > 0)
+      run(() => api.setItemPrice(item!.id, p, label || '1')).then(() => {
+        setPricing(false);
+        setPackLabel('');
+      });
   }
 
   return (
@@ -171,7 +231,7 @@ export default function ItemSheet({
         {item.in_pantry ? (
           <>
             <strong>At home</strong>
-            {(item.pantry_quantity !== null || item.pantry_unit) && <span> · {formatAmount(item.pantry_quantity, item.pantry_unit)}</span>}
+            {(item.pantry_quantity !== null || item.pantry_unit) && <span> · {pantryAmount(item)}</span>}
             {item.bought_at && <span className="muted small"> · bought {item.bought_at}</span>}
             {item.pantry_source && <span className="muted small"> · {SOURCE_LABEL[item.pantry_source] ?? item.pantry_source}</span>}
             {expiry && <span className={`expiry ${expiry.level}`}>{expiry.text}</span>}
@@ -179,14 +239,54 @@ export default function ItemSheet({
         ) : (
           <span className="muted">Not at home</span>
         )}
+        {item.in_pantry && !amountEdit ? (
+          <button
+            type="button"
+            className="text-button tiny strip-edit"
+            onClick={() =>
+              setAmountEdit({
+                quantity: item.pantry_quantity?.toString() ?? '',
+                unit: item.pantry_unit ?? item.container ?? (item.size_unit && item.size_unit !== 'piece' ? item.size_unit : ''),
+              })
+            }
+          >
+            change amount
+          </button>
+        ) : null}
       </div>
+      {amountEdit && (
+        <form className="inline-form amount-edit" onSubmit={saveAmount}>
+          <input
+            inputMode="decimal"
+            value={amountEdit.quantity}
+            onChange={(e) => setAmountEdit({ ...amountEdit, quantity: e.target.value })}
+            placeholder="amount"
+            aria-label="Amount at home"
+            autoFocus
+          />
+          <select value={amountEdit.unit} onChange={(e) => setAmountEdit({ ...amountEdit, unit: e.target.value })} aria-label="Unit">
+            <option value="">{amountEdit.quantity.trim() ? 'pieces' : 'no amount'}</option>
+            {[...new Set([item.container, 'ml', 'l', 'g', 'kg', ...containers].filter(Boolean) as string[])].map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className="button small">
+            Save
+          </button>
+          <button type="button" className="button ghost small" onClick={() => setAmountEdit(null)}>
+            Cancel
+          </button>
+        </form>
+      )}
 
       {item.in_pantry ? (
         <form className="inline-form use-some" onSubmit={useSome}>
           <input
             value={useAmount}
             onChange={(e) => setUseAmount(e.target.value)}
-            placeholder={item.pantry_quantity !== null ? `Used some? e.g. ${item.pantry_unit ? `250 ${item.pantry_unit === 'kg' ? 'g' : item.pantry_unit}` : '2'}` : 'No amount recorded — use Used up'}
+            placeholder={item.pantry_quantity !== null ? `Used some? e.g. ${usedExample(item, containers)}` : 'No amount recorded — use Used up'}
             disabled={item.pantry_quantity === null}
             aria-label="Amount used"
           />
@@ -214,6 +314,72 @@ export default function ItemSheet({
           </select>
         </label>
       </div>
+      <label className="field">
+        <span className="label">Short name in recipe steps</span>
+        <span className="ref-field">
+          <span>{'{{'}</span>
+          <input
+            value={ref}
+            onChange={(e) => setRef(sanitizeRef(e.target.value))}
+            onBlur={saveRef}
+            onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+            placeholder="flour"
+            aria-label="Short name in recipe steps"
+          />
+          <span>{'}}'}</span>
+        </span>
+        <span className="hint">
+          A recipe's method can write <code>{`{{${ref || 'name'}}}`}</code> for the amount of this item it uses ("Sift {`{{${ref || 'name'}}}`}" →
+          "Sift 1¾ cups plain flour"). Changing it updates every recipe that uses it.
+        </span>
+      </label>
+
+      <section className="sheet-section">
+        <h3>Comes in</h3>
+        <div className="size-row">
+          <select
+            value={item.container ?? ''}
+            onChange={(e) => saveSize({ container: e.target.value || null })}
+            aria-label="Container"
+          >
+            <option value="">—</option>
+            {containers.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <span className="muted">{item.container ? 'of usually' : 'usually holding'}</span>
+          <input
+            className="size-qty"
+            inputMode="decimal"
+            value={sizeQty}
+            onChange={(e) => setSizeQty(e.target.value)}
+            onBlur={saveSizeQty}
+            onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+            placeholder="750"
+            aria-label="What one holds"
+          />
+          <select
+            value={item.size_unit ?? ''}
+            onChange={(e) => saveSize({ size_unit: e.target.value || null, ...(item.size_quantity == null && sizeQty.trim() ? { size_quantity: Number(sizeQty.replace(',', '.')) } : {}) })}
+            aria-label="Size unit"
+            disabled={item.size_quantity == null && !sizeQty.trim()}
+          >
+            <option value="">unit</option>
+            {['ml', 'l', 'g', 'kg', 'piece'].map((u) => (
+              <option key={u} value={u}>
+                {u === 'piece' ? 'pieces' : u}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="hint">
+          {item.container && item.size_quantity != null
+            ? `At home it can be counted in ${item.container}s; recipes take what they use off it (2 tbsp from a ${item.container} of ${formatAmount(item.size_quantity, item.size_unit === 'piece' ? null : item.size_unit ?? null)} leaves the rest), and new slips that don't say a size use this. Bought a different size? Slips that print it (500ML) use their own, and prices ask each time.`
+            : 'What it comes in and what one usually holds — a bottle of 750 ml, a tin of 400 g. Recipes then take millilitres or grams off what\'s at home.'}
+        </p>
+      </section>
 
       <section className="sheet-section">
         <h3>Use by</h3>
@@ -257,14 +423,14 @@ export default function ItemSheet({
           ))}
         </div>
         <p className="hint">
-          Remembered for {item.name}: each time it's bought (slip, shopping list or by hand) the use-by date is filled in from this.
+          Remembered for {item.name}: each time it's bought (from a slip or added by hand) the use-by date is filled in from this.
         </p>
       </section>
 
       <section className="sheet-section">
         <div className="row-between">
           <h3>Price paid</h3>
-          <button type="button" className="link small" onClick={() => setPricing((p) => !p)}>
+          <button type="button" className="link small" onClick={startPricing}>
             {pricing ? 'Cancel' : price ? 'Change' : 'Set price'}
           </button>
         </div>
@@ -294,9 +460,29 @@ export default function ItemSheet({
           </ul>
         )}
         {pricing && (
-          <form className="price-form" onSubmit={savePrice}>
-            <input inputMode="decimal" placeholder="Pack price, e.g. 72" value={packPrice} onChange={(e) => setPackPrice(e.target.value)} autoFocus />
-            <input placeholder="Pack size, e.g. 18 eggs, 1.2 kg, 2 L" value={packLabel} onChange={(e) => setPackLabel(e.target.value)} />
+          <form className={`price-form${sized ? ' sized' : ''}`} onSubmit={savePrice}>
+            <input inputMode="decimal" placeholder="Price paid, e.g. 27" aria-label="Price paid" value={packPrice} onChange={(e) => setPackPrice(e.target.value)} autoFocus />
+            {sized ? (
+              <span className="size-row price-size">
+                <span className="muted">for one {item.container ?? 'pack'} of</span>
+                <input
+                  className="size-qty"
+                  inputMode="decimal"
+                  value={priceSize.quantity}
+                  onChange={(e) => setPriceSize({ ...priceSize, quantity: e.target.value })}
+                  aria-label="Size of the pack bought"
+                />
+                <select value={priceSize.unit} onChange={(e) => setPriceSize({ ...priceSize, unit: e.target.value })} aria-label="Unit">
+                  {['ml', 'l', 'g', 'kg', 'piece'].map((u) => (
+                    <option key={u} value={u}>
+                      {u === 'piece' ? 'pieces' : u}
+                    </option>
+                  ))}
+                </select>
+              </span>
+            ) : (
+              <input placeholder="Pack size, e.g. 18 eggs, 1.2 kg, 2 L" aria-label="Pack size" value={packLabel} onChange={(e) => setPackLabel(e.target.value)} />
+            )}
             <button type="submit" className="button small">
               Save
             </button>
@@ -416,4 +602,16 @@ function MergePicker({ item, onClose, onMerged }: { item: ItemDetail; onClose: (
       </ul>
     </Modal>
   );
+}
+
+/** A sensible "used some" example: "250 ml" from a bottle of 750 ml, "1 tin" from tins, "250 g" from a kilo. */
+function usedExample(item: ItemDetail, containers: string[]): string {
+  const unit = item.pantry_unit;
+  if (!unit) return '2';
+  if (containers.includes(unit)) {
+    const u = item.size_unit;
+    if (u && u !== 'piece') return `${u === 'kg' || u === 'g' ? 100 : 30} ${u === 'kg' ? 'g' : u === 'l' ? 'ml' : u}`;
+    return `1 ${unit}`;
+  }
+  return `250 ${unit === 'kg' ? 'g' : unit === 'l' ? 'ml' : unit}`;
 }

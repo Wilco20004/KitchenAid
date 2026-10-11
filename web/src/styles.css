@@ -1030,6 +1030,350 @@ code {
   font-size: 0.95rem;
 }
 
+/* ingredient rows */
+
+.icon-button.small {
+  width: 30px;
+  height: 30px;
+}
+
+.text-button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--primary);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.text-button.tiny {
+  font-size: 0.78rem;
+}
+
+.row-gap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.ing-rows {
+  list-style: none;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ing-rows:empty {
+  display: none;
+}
+
+.ing-rows > li {
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.ing-rows > li:last-child {
+  border-bottom: none;
+}
+
+.ing-section {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  background: var(--surface-2);
+}
+
+.ing-section:first-child {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.ing-section input {
+  flex: 1;
+  font-weight: 650;
+}
+
+.ing-main {
+  display: grid;
+  grid-template-columns: 4.5rem 5.5rem minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.ing-main input,
+.ing-meta input,
+.ing-section input {
+  min-width: 0;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.92rem;
+}
+
+.ing-amount {
+  text-align: right;
+}
+
+.row-tools {
+  display: inline-flex;
+}
+
+.ing-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  align-items: center;
+  margin-top: 0.35rem;
+  padding-left: 4.9rem;
+}
+
+.ing-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1 1 14rem;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.ing-link input {
+  flex: 1;
+  max-width: 16rem;
+}
+
+.ing-link.linked {
+  color: var(--primary);
+}
+
+.ing-link.linked input {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.chip.suggest {
+  border-style: dashed;
+  color: var(--primary);
+}
+
+.ing-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+code.ing-ref {
+  color: var(--primary);
+}
+
+.ref-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  color: var(--muted);
+}
+
+.ref-field input {
+  width: 10rem;
+  font-family: inherit;
+}
+
+.ing-paste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ing-unlinked .button {
+  margin-left: 0.25rem;
+}
+
+@media (max-width: 640px) {
+  /* amount · unit · tools, then the name and the note on lines of their own */
+  .ing-main {
+    grid-template-columns: 4.5rem 5.5rem minmax(0, 1fr);
+    grid-template-areas: 'amount unit tools' 'name name name' 'note note note';
+  }
+  .ing-amount {
+    grid-area: amount;
+  }
+  .ing-unit {
+    grid-area: unit;
+  }
+  .ing-name {
+    grid-area: name;
+  }
+  .ing-note {
+    grid-area: note;
+  }
+  .ing-main .row-tools {
+    grid-area: tools;
+    justify-self: end;
+  }
+  .ing-meta {
+    padding-left: 0;
+  }
+}
+
+/* method with {{amounts}} */
+
+.steps-input {
+  position: relative;
+}
+
+.steps-input textarea {
+  width: 100%;
+}
+
+.ref-menu {
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 5;
+  list-style: none;
+  margin: 0;
+  padding: 0.3rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.ref-menu button {
+  display: flex;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ref-menu button.active,
+.ref-menu button:hover {
+  background: var(--primary-soft);
+}
+
+.ref-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+  margin-top: 0.4rem;
+}
+
+.ref-chips .chip {
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+}
+
+.steps-preview {
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+
+.steps-preview ol {
+  margin: 0.4rem 0 0;
+  padding-left: 1.4rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+mark.amount {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 650;
+  border-radius: 4px;
+  padding: 0 0.2em;
+}
+
+mark.amount.missing {
+  background: var(--warn-bg);
+  color: var(--danger);
+}
+
+/* recipe page */
+
+.ing-qty {
+  font-weight: 650;
+}
+
+.ing-note-text {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.link-nudge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.25rem 0 0.4rem;
+  padding: 0.25rem 0.65rem;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.link-nudge:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.link-review {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.link-review li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.link-review li.off .link-ing {
+  opacity: 0.5;
+}
+
+.link-pick {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.link-pick input:not([type='checkbox']) {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .link-review li {
+    grid-template-columns: 1fr;
+    gap: 0.3rem;
+  }
+}
+
 .import-form {
   display: flex;
   flex-direction: column;
@@ -1497,6 +1841,10 @@ code {
   font-weight: 500;
 }
 
+.trolley-clear {
+  margin-left: 0.5rem;
+}
+
 .done-toggle {
   display: inline-flex;
   align-items: center;
@@ -1669,6 +2017,50 @@ code {
 
 .status-strip.home {
   background: var(--primary-soft);
+}
+
+.size-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.size-row select {
+  width: auto;
+}
+
+.sheet-section .size-row .size-qty {
+  width: 6rem;
+  flex: 0 0 6rem;
+}
+
+.status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.25rem;
+}
+
+/* Price, then "for one bottle of [500] [ml]", then Save — stacked. */
+.price-form.sized {
+  grid-template-columns: 1fr;
+}
+
+.price-form.sized .price-size {
+  flex-wrap: nowrap;
+}
+
+.price-form.sized button[type='submit'] {
+  justify-self: start;
+}
+
+.strip-edit {
+  margin-left: auto;
+}
+
+.amount-edit select {
+  width: auto;
 }
 
 .sheet-section {
@@ -2313,15 +2705,43 @@ table.mini tr.winner td {
   border-bottom: 1px solid var(--line);
 }
 
-.slip-lines li.off {
-  opacity: 0.5;
+/* Removed: struck through, but the switch stays readable to change your mind. */
+.slip-lines li.off .slip-raw > span:last-child {
+  opacity: 0.55;
+  text-decoration: line-through;
 }
 
 .slip-raw {
   display: flex;
   gap: 0.6rem;
-  align-items: flex-start;
-  cursor: pointer;
+  align-items: center;
+}
+
+.slip-choice {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.slip-choice button {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+}
+
+.slip-choice button.active.remove {
+  color: var(--danger);
+}
+
+.slip-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.slip-all {
+  display: inline-flex;
+  gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .slip-fields {
@@ -2329,7 +2749,7 @@ table.mini tr.winner td {
   grid-template-columns: 1fr auto;
   gap: 0.35rem 0.5rem;
   align-items: center;
-  margin: 0.35rem 0 0 1.6rem;
+  margin: 0.35rem 0 0;
 }
 
 .slip-pack {
